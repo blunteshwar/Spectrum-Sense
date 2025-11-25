@@ -1,0 +1,2 @@
+"""Vector database client module."""
+

@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>sp-popover Component - Adobe Spectrum</title>
+</head>
+<body>
+    <main>
+        <h1>sp-popover</h1>
+        <p>The Popover component displays floating content relative to a trigger element.</p>
+        
+        <h2>Usage</h2>
+        <p>When opening a popover on pointerdown, ensure to set the placement prop correctly.</p>
+        
+        <h3>Basic Example</h3>
+        <pre><code class="language-html">
+&lt;sp-popover placement="bottom"&gt;
+    &lt;sp-button slot="trigger"&gt;Open Popover&lt;/sp-button&gt;
+    &lt;p&gt;Popover content&lt;/p&gt;
+&lt;/sp-popover&gt;
+        </code></pre>
+        
+        <h3>Pointer Events</h3>
+        <p>To open on pointerdown, use the open attribute with an event listener:</p>
+        <pre><code class="language-javascript">
+const popover = document.querySelector('sp-popover');
+const button = document.querySelector('sp-button');
+button.addEventListener('pointerdown', () => {
+    popover.open = true;
+});
+        </code></pre>
+    </main>
+</body>
+</html>
+

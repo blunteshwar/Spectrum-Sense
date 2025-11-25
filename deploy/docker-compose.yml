@@ -1,0 +1,72 @@
+version: '3.8'
+
+services:
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: spectrum-qdrant
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    environment:
+      - QDRANT__SERVICE__GRPC_PORT=6334
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6333/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  llm-mock:
+    image: python:3.11-slim
+    container_name: spectrum-llm-mock
+    working_dir: /app
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./llm_mock_server.py:/app/llm_mock_server.py
+    command: >
+      sh -c "pip install fastapi uvicorn httpx && 
+             python /app/llm_mock_server.py"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    container_name: spectrum-api
+    ports:
+      - "8000:8000"
+    volumes:
+      - ../data:/app/data
+      - ../sample_data:/app/sample_data
+    environment:
+      - QDRANT_HOST=qdrant
+      - QDRANT_PORT=6333
+      - QDRANT_COLLECTION_NAME=spectrum_docs
+      - LLM_SERVICE_URL=http://llm-mock:8001
+      - USE_MOCK_LLM=true
+      - EMBEDDING_MODEL=sentence-transformers/all-mpnet-base-v2
+      - RETRIEVER_TOP_K=50
+      - USE_BM25_RERANKER=true
+      - DATA_DIR=/app/data
+      - CHUNKS_DIR=/app/data/chunks
+      - SAMPLE_DATA_DIR=/app/sample_data
+    depends_on:
+      qdrant:
+        condition: service_healthy
+      llm-mock:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  qdrant_data:
+
