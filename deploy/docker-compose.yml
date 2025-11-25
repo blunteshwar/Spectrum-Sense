@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   qdrant:
     image: qdrant/qdrant:latest
@@ -12,10 +10,11 @@ services:
     environment:
       - QDRANT__SERVICE__GRPC_PORT=6334
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:6333/health"]
+      test: ["CMD-SHELL", "timeout 1 bash -c '</dev/tcp/localhost/6333' || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 10s
 
   llm-mock:
     image: python:3.11-slim
@@ -29,10 +28,11 @@ services:
       sh -c "pip install fastapi uvicorn httpx && 
              python /app/llm_mock_server.py"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      test: ["CMD-SHELL", "python3 -c \"import urllib.request; urllib.request.urlopen('http://localhost:8001/health').read()\" || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 30s
 
   api:
     build:
@@ -44,6 +44,8 @@ services:
     volumes:
       - ../data:/app/data
       - ../sample_data:/app/sample_data
+      # Mount your Slack export directory here if using custom path:
+      # - /path/to/your/slack/export:/app/slack_export:ro
     environment:
       - QDRANT_HOST=qdrant
       - QDRANT_PORT=6333
@@ -56,6 +58,8 @@ services:
       - DATA_DIR=/app/data
       - CHUNKS_DIR=/app/data/chunks
       - SAMPLE_DATA_DIR=/app/sample_data
+      # Set SLACK_EXPORT_PATH to use your own Slack export (file or directory)
+      # - SLACK_EXPORT_PATH=/app/slack_export
     depends_on:
       qdrant:
         condition: service_healthy

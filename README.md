@@ -17,7 +17,6 @@ Backend for an internal RAG chatbot that answers questions about Adobe Spectrum 
 
 - Docker and Docker Compose
 - Python 3.11+ (for local development)
-- (Optional) GPU for running real LLM models
 
 ### Local Development with Docker Compose
 
@@ -172,33 +171,11 @@ Environment variables (see `.env.example`):
 - `EMBEDDING_MODEL`: Embedding model (default: sentence-transformers/all-mpnet-base-v2)
 - `RETRIEVER_TOP_K`: Initial retrieval count (default: 50)
 - `USE_BM25_RERANKER`: Enable BM25 re-ranking (default: true)
+- `SLACK_EXPORT_PATH`: Path to your Slack export JSON file or directory (default: `sample_data/slack_sample.json`)
 
 ## Switching LLM Backends
 
-### Option A: GPU-based (text-generation-inference)
-
-1. **Start TGI server** (requires GPU):
-   ```bash
-   docker run --gpus all -p 8001:80 \
-     -v /path/to/models:/models \
-     ghcr.io/huggingface/text-generation-inference:latest \
-     --model-id mistralai/Mistral-7B-Instruct-v0.2
-   ```
-
-2. **Update docker-compose.yml**:
-   ```yaml
-   llm-service:
-     image: ghcr.io/huggingface/text-generation-inference:latest
-     # ... configuration
-   ```
-
-3. **Set environment**:
-   ```bash
-   export LLM_SERVICE_URL=http://localhost:8001
-   export USE_MOCK_LLM=false
-   ```
-
-### Option B: CPU-based (llama.cpp)
+### CPU-based (llama.cpp)
 
 1. **Download model** (e.g., Mistral 7B quantized):
    ```bash
@@ -219,12 +196,27 @@ Environment variables (see `.env.example`):
    - Request export (JSON format)
    - Download and extract
 
-2. **Import**:
+2. **Configure the export path** (choose one method):
+
+   **Option A: Using environment variable** (recommended for API ingestion):
+   ```bash
+   export SLACK_EXPORT_PATH=/path/to/your/slack/export
+   # Can be a single JSON file or a directory containing channel JSON files
+   ```
+
+   **Option B: Using CLI tool**:
    ```bash
    python ingest/slack_importer.py /path/to/slack/export --output data/slack_raw.jsonl
    ```
 
-3. **Chunk and index**:
+3. **Ingest via API** (if using Option A):
+   ```bash
+   curl -X POST http://localhost:8000/ingest/run \
+     -H "Content-Type: application/json" \
+     -d '{"source": "slack"}'
+   ```
+
+   **Or chunk and index manually** (if using Option B):
    ```bash
    python ingest/normalize_and_chunk.py data/slack_raw.jsonl --source slack
    python embeddings/compute_embeddings.py data/chunks/slack_chunks.jsonl
@@ -248,16 +240,7 @@ pytest tests/test_e2e.py -v
 
 - **Embedding model**: Automatically downloaded on first use (sentence-transformers)
 - **LLM models**: Manual download required for production:
-  - GPU: Download from HuggingFace (Mistral-7B-Instruct, Llama-2-13B, etc.)
   - CPU: Download quantized GGUF models for llama.cpp
-
-### GPU Setup
-
-For GPU-based LLM inference:
-1. Install NVIDIA drivers
-2. Install CUDA toolkit
-3. Use `nvidia-docker` or Docker with GPU support
-4. See "Switching LLM Backends" above
 
 ## Troubleshooting
 

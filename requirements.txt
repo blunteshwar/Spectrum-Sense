@@ -10,11 +10,13 @@ lxml==4.9.3
 requests==2.31.0
 
 # Text processing
-sentence-transformers==2.2.2
+sentence-transformers==2.7.0
 rank-bm25==0.2.2
+huggingface-hub>=0.20.0,<1.0.0
+numpy<2.0.0
 
 # Vector DB
-qdrant-client==1.7.0
+qdrant-client>=1.9.0
 
 # LLM serving (optional - for local inference)
 transformers==4.35.2

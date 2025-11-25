@@ -121,16 +121,11 @@ Answer:
 ### Mock Service
 - Returns structured mock responses
 - Includes source citations
-- Useful for local development without GPU
+- Useful for local development
 
 ### Production Options
 
-**Option A: GPU (text-generation-inference)**
-- Supports Mistral-7B, Llama-2-13B
-- Fast inference with GPU acceleration
-- Requires NVIDIA GPU
-
-**Option B: CPU (llama.cpp)**
+**CPU-based (llama.cpp)**
 - Quantized models (4-bit, 8-bit)
 - Runs on CPU (slower but accessible)
 - Good for development/testing

@@ -96,21 +96,25 @@ class QdrantClientWrapper:
                 filter_condition = Filter(must=conditions)
 
         try:
-            results = self.client.search(
+            # Use query_points API (newer qdrant-client)
+            # query_points accepts a list[float] directly as the query parameter
+            results = self.client.query_points(
                 collection_name=self.collection_name,
-                query_vector=query_vector,
+                query=query_vector,  # Direct vector query
                 limit=top_k,
                 score_threshold=score_threshold,
-                query_filter=filter_condition
+                query_filter=filter_condition,
+                with_payload=True,
+                with_vectors=False
             )
 
-            # Format results
+            # Format results from query_points response
             formatted_results = []
-            for result in results:
+            for point in results.points:
                 formatted_results.append({
-                    "id": result.id,
-                    "score": result.score,
-                    "payload": result.payload
+                    "id": point.id,
+                    "score": point.score if hasattr(point, 'score') else 0.0,
+                    "payload": point.payload if hasattr(point, 'payload') else {}
                 })
 
             return formatted_results
@@ -131,15 +135,26 @@ class QdrantClientWrapper:
         """Get collection information."""
         try:
             info = self.client.get_collection(self.collection_name)
+            # Extract vector config safely
+            vector_size = None
+            distance_name = None
+            if hasattr(info, 'config') and hasattr(info.config, 'params'):
+                if hasattr(info.config.params, 'vectors'):
+                    vectors = info.config.params.vectors
+                    if hasattr(vectors, 'size'):
+                        vector_size = vectors.size
+                    if hasattr(vectors, 'distance'):
+                        distance_name = vectors.distance.name if hasattr(vectors.distance, 'name') else str(vectors.distance)
+            
             return {
-                "name": info.name,
+                "name": self.collection_name,
                 "points_count": info.points_count,
-                "vectors_count": info.vectors_count,
+                "vectors_count": getattr(info, 'indexed_vectors_count', info.points_count),
                 "config": {
                     "params": {
                         "vectors": {
-                            "size": info.config.params.vectors.size,
-                            "distance": info.config.params.vectors.distance.name
+                            "size": vector_size,
+                            "distance": distance_name
                         }
                     }
                 }

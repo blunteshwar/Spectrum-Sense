@@ -255,22 +255,37 @@ async def run_ingestion(request: IngestRequest):
 
         if request.source in ["slack", "all"]:
             logger.info("Starting Slack ingestion", task_id=task_id)
-            # For MVP, use sample data
-            slack_sample = sample_data_dir / "slack_sample.json"
-            if slack_sample.exists():
-                importer = SlackImporter()
-                results = importer.parse_slack_export(slack_sample)
-                slack_output = data_dir / "slack_raw.jsonl"
-                importer.save_jsonl(results, slack_output)
+            
+            # Check for custom Slack export path, fallback to sample data
+            slack_export_path_env = os.getenv("SLACK_EXPORT_PATH")
+            if slack_export_path_env:
+                slack_export_path = Path(slack_export_path_env)
+            else:
+                slack_export_path = sample_data_dir / "slack_sample.json"
+            
+            if not slack_export_path.exists():
+                error_msg = f"Slack export path not found: {slack_export_path}. " \
+                           f"Set SLACK_EXPORT_PATH environment variable or place export in {sample_data_dir}/slack_sample.json"
+                logger.error(error_msg)
+                raise HTTPException(status_code=404, detail=error_msg)
+            
+            logger.info("Processing Slack export", path=str(slack_export_path))
+            importer = SlackImporter()
+            results = importer.parse_slack_export(slack_export_path)
+            slack_output = data_dir / "slack_raw.jsonl"
+            importer.save_jsonl(results, slack_output)
+            
+            logger.info("Processed Slack threads", count=len(results))
 
-                # Chunk
-                slack_chunks = chunks_dir / "slack_chunks.jsonl"
-                process_jsonl(slack_output, slack_chunks, "slack")
+            # Chunk
+            slack_chunks = chunks_dir / "slack_chunks.jsonl"
+            process_jsonl(slack_output, slack_chunks, "slack")
 
-                # Index
-                from embeddings.compute_embeddings import process_chunks_jsonl
-                if vector_client:
-                    process_chunks_jsonl(slack_chunks, vector_client)
+            # Index
+            from embeddings.compute_embeddings import process_chunks_jsonl
+            if vector_client:
+                process_chunks_jsonl(slack_chunks, vector_client)
+                logger.info("Indexed Slack chunks")
 
         return IngestResponse(status="started", task_id=task_id)
 
