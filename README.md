@@ -214,7 +214,7 @@ Ollama supports many models. To use a different model:
 
 ## Testing
 
-Run tests:
+Run all tests:
 ```bash
 pytest tests/
 ```
@@ -222,6 +222,33 @@ pytest tests/
 Run E2E smoke test (requires Qdrant running):
 ```bash
 pytest tests/test_e2e.py -v
+```
+
+### PR Validation
+
+Before merging PRs, run health check and integration tests to verify all services are working:
+
+```bash
+# Using the validation script (recommended)
+./scripts/validate_pr.sh
+
+# Or using make
+make test-health
+
+# Or directly with pytest
+pytest tests/test_health_integration.py -v -m "not slow"
+```
+
+The validation script checks:
+- ✅ All services (Qdrant, Ollama, API) are running and healthy
+- ✅ Ollama has the required model downloaded
+- ✅ LLM service is not using mock (real Ollama integration)
+- ✅ API endpoints return correct structure
+- ✅ RAG pipeline works end-to-end
+
+For full integration tests including slow tests:
+```bash
+pytest tests/test_health_integration.py -v
 ```
 
 ## Manual Steps Required
