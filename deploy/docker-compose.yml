@@ -16,19 +16,15 @@ services:
       retries: 5
       start_period: 10s
 
-  llm-mock:
-    image: python:3.11-slim
-    container_name: spectrum-llm-mock
-    working_dir: /app
+  ollama:
+    image: ollama/ollama:latest
+    container_name: spectrum-ollama
     ports:
-      - "8001:8001"
+      - "11434:11434"
     volumes:
-      - ./llm_mock_server.py:/app/llm_mock_server.py
-    command: >
-      sh -c "pip install fastapi uvicorn httpx && 
-             python /app/llm_mock_server.py"
+      - ollama_data:/root/.ollama
     healthcheck:
-      test: ["CMD-SHELL", "python3 -c \"import urllib.request; urllib.request.urlopen('http://localhost:8001/health').read()\" || exit 1"]
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -50,8 +46,8 @@ services:
       - QDRANT_HOST=qdrant
       - QDRANT_PORT=6333
       - QDRANT_COLLECTION_NAME=spectrum_docs
-      - LLM_SERVICE_URL=http://llm-mock:8001
-      - USE_MOCK_LLM=true
+      - LLM_SERVICE_URL=http://ollama:11434
+      - LLM_MODEL=mistral:7b
       - EMBEDDING_MODEL=sentence-transformers/all-mpnet-base-v2
       - RETRIEVER_TOP_K=50
       - USE_BM25_RERANKER=true
@@ -63,7 +59,7 @@ services:
     depends_on:
       qdrant:
         condition: service_healthy
-      llm-mock:
+      ollama:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
@@ -73,4 +69,5 @@ services:
 
 volumes:
   qdrant_data:
+  ollama_data:
 

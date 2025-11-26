@@ -3,7 +3,7 @@
 import os
 import time
 from pathlib import Path
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Union
 from datetime import datetime
 
 from fastapi import FastAPI, HTTPException
@@ -18,7 +18,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from vector.qdrant_client import QdrantClientWrapper
 from embeddings.compute_embeddings import EmbeddingComputer
 from retriever.service import RetrieverService
-from llm_service.serve import create_llm_service, MockLLMService
+from llm_service.serve import create_llm_service, MockLLMService, LLMService
 from ingest.spectrum_crawler import SpectrumCrawler
 from ingest.slack_importer import SlackImporter
 from ingest.normalize_and_chunk import process_jsonl
@@ -41,7 +41,7 @@ app.add_middleware(
 vector_client: Optional[QdrantClientWrapper] = None
 embedding_computer: Optional[EmbeddingComputer] = None
 retriever_service: Optional[RetrieverService] = None
-llm_service: Optional[MockLLMService] = None
+llm_service: Optional[Union[LLMService, MockLLMService]] = None
 
 
 # Request/Response models
@@ -90,8 +90,9 @@ async def startup_event():
     qdrant_port = int(os.getenv("QDRANT_PORT", "6333"))
     collection_name = os.getenv("QDRANT_COLLECTION_NAME", "spectrum_docs")
     embedding_model = os.getenv("EMBEDDING_MODEL", "sentence-transformers/all-mpnet-base-v2")
-    llm_service_url = os.getenv("LLM_SERVICE_URL", "http://llm-mock:8001")
-    use_mock_llm = os.getenv("USE_MOCK_LLM", "true").lower() == "true"
+    llm_service_url = os.getenv("LLM_SERVICE_URL", "http://ollama:11434")
+    llm_model = os.getenv("LLM_MODEL", "mistral:7b")
+    use_mock_llm = os.getenv("USE_MOCK_LLM", "false").lower() == "true"
 
     # Initialize vector client
     logger.info("Initializing vector client", host=qdrant_host, port=qdrant_port)
@@ -119,8 +120,8 @@ async def startup_event():
         logger.info("Using mock LLM service")
         llm_service = MockLLMService()
     else:
-        logger.info("Initializing LLM service", url=llm_service_url)
-        llm_service = create_llm_service(service_url=llm_service_url, use_mock=False)
+        logger.info("Initializing LLM service", url=llm_service_url, model=llm_model)
+        llm_service = create_llm_service(service_url=llm_service_url, model_name=llm_model, use_mock=False)
 
     logger.info("Startup complete")
 

@@ -3,7 +3,6 @@
 ## Prerequisites
 
 - Docker and Docker Compose installed
-- Python 3.11+ (for local development without Docker)
 
 ## Step 1: Start Services
 
@@ -14,10 +13,20 @@ docker compose up -d
 
 This starts:
 - **Qdrant** (vector database) on `http://localhost:6333`
-- **LLM Mock Server** on `http://localhost:8001`
+- **Ollama** (LLM service) on `http://localhost:11434`
 - **API Server** on `http://localhost:8000`
 
 Wait for all services to be healthy (about 30 seconds).
+
+### Download LLM Model
+
+Before using the API, download the Mistral 7B model:
+
+```bash
+docker exec spectrum-ollama ollama pull mistral:7b
+```
+
+This downloads approximately 4GB and may take a few minutes depending on your internet connection.
 
 ## Step 2: Index Sample Data
 

@@ -8,7 +8,7 @@ Backend for an internal RAG chatbot that answers questions about Adobe Spectrum 
 - **Embeddings**: Compute embeddings using sentence-transformers
 - **Vector DB**: Index and search using Qdrant
 - **Retriever**: Semantic search with optional BM25 re-ranking
-- **LLM Service**: Configurable LLM inference (mock for local dev, real models for production)
+- **LLM Service**: LLM inference using Ollama (runs locally)
 - **REST API**: FastAPI endpoints for querying and ingestion
 
 ## Quick Start
@@ -16,7 +16,6 @@ Backend for an internal RAG chatbot that answers questions about Adobe Spectrum 
 ### Prerequisites
 
 - Docker and Docker Compose
-- Python 3.11+ (for local development)
 
 ### Local Development with Docker Compose
 
@@ -28,10 +27,17 @@ Backend for an internal RAG chatbot that answers questions about Adobe Spectrum 
 
    This starts:
    - Qdrant (vector DB) on port 6333
-   - LLM mock server on port 8001
+   - Ollama (LLM service) on port 11434
    - API server on port 8000
 
-2. **Index sample data**:
+2. **Download the LLM model** (first time only):
+   ```bash
+   docker exec spectrum-ollama ollama pull mistral:7b
+   ```
+   
+   This downloads the Mistral 7B model (~4GB). You can use other models like `llama2:7b`, `codellama:7b`, etc.
+
+3. **Index sample data**:
    ```bash
    ./scripts/reset_local_db.sh
    ```
@@ -53,30 +59,6 @@ Backend for an internal RAG chatbot that answers questions about Adobe Spectrum 
    curl -X POST http://localhost:8000/ingest/run \
      -H "Content-Type: application/json" \
      -d '{"source": "all"}'
-   ```
-
-### Local Development (Without Docker)
-
-1. **Install dependencies**:
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-2. **Start Qdrant** (using Docker):
-   ```bash
-   docker run -d -p 6333:6333 qdrant/qdrant
-   ```
-
-3. **Set environment variables**:
-   ```bash
-   export QDRANT_HOST=localhost
-   export QDRANT_PORT=6333
-   export USE_MOCK_LLM=true
-   ```
-
-4. **Run the API**:
-   ```bash
-   uvicorn api.app:app --reload --port 8000
    ```
 
 ## Project Structure
@@ -166,28 +148,36 @@ Environment variables (see `.env.example`):
 - `QDRANT_HOST`: Qdrant host (default: localhost)
 - `QDRANT_PORT`: Qdrant port (default: 6333)
 - `QDRANT_COLLECTION_NAME`: Collection name (default: spectrum_docs)
-- `LLM_SERVICE_URL`: LLM service URL (default: http://llm-mock:8001)
-- `USE_MOCK_LLM`: Use mock LLM (default: true)
+- `LLM_SERVICE_URL`: LLM service URL (default: http://ollama:11434)
+- `LLM_MODEL`: Ollama model name (default: mistral:7b)
 - `EMBEDDING_MODEL`: Embedding model (default: sentence-transformers/all-mpnet-base-v2)
 - `RETRIEVER_TOP_K`: Initial retrieval count (default: 50)
 - `USE_BM25_RERANKER`: Enable BM25 re-ranking (default: true)
 - `SLACK_EXPORT_PATH`: Path to your Slack export JSON file or directory (default: `sample_data/slack_sample.json`)
 
-## Switching LLM Backends
+## Switching LLM Models
 
-### CPU-based (llama.cpp)
+Ollama supports many models. To use a different model:
 
-1. **Download model** (e.g., Mistral 7B quantized):
+1. **Pull a different model**:
    ```bash
-   wget https://huggingface.co/TheBloke/Mistral-7B-Instruct-v0.2-GGUF/resolve/main/mistral-7b-instruct-v0.2.Q4_K_M.gguf
+   docker exec spectrum-ollama ollama pull llama2:7b
+   # or
+   docker exec spectrum-ollama ollama pull codellama:7b
+   # or
+   docker exec spectrum-ollama ollama pull mistral:7b-instruct
    ```
 
-2. **Start llama.cpp server**:
-   ```bash
-   ./llama-server -m mistral-7b-instruct-v0.2.Q4_K_M.gguf -p 8001
+2. **Update the model name** in `docker-compose.yml`:
+   ```yaml
+   environment:
+     - LLM_MODEL=llama2:7b
    ```
 
-3. **Update API to use llama.cpp API format** (modify `llm_service/serve.py`)
+3. **Restart the API service**:
+   ```bash
+   docker compose restart api
+   ```
 
 ## Adding Slack Export
 
@@ -254,12 +244,15 @@ curl http://localhost:6333/health
 
 ### LLM Service Not Responding
 
-Check mock LLM server:
+Check Ollama service:
 ```bash
-curl http://localhost:8001/health
+curl http://localhost:11434/api/tags
 ```
 
-For real LLM, check logs and ensure model is loaded.
+Ensure the model is downloaded:
+```bash
+docker exec spectrum-ollama ollama pull mistral:7b
+```
 
 ### Embedding Model Download
 

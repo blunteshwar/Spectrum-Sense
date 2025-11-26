@@ -105,14 +105,24 @@ class LLMService:
         temp = temperature if temperature is not None else self.temperature
         max_toks = max_tokens if max_tokens is not None else self.max_tokens
 
-        # Try different API formats
+        # Try different API formats (prioritize chat format for Ollama)
         try:
-            # Format 1: OpenAI-compatible
+            # Format 1: Chat format (preferred for Ollama)
+            # Split prompt into system and user messages
+            prompt_parts = prompt.split("User question:")
+            system_content = prompt_parts[0].strip() if len(prompt_parts) > 1 else ""
+            user_content = prompt_parts[-1].strip() if prompt_parts else prompt
+            
+            messages = []
+            if system_content:
+                messages.append({"role": "system", "content": system_content})
+            messages.append({"role": "user", "content": user_content})
+            
             response = self.client.post(
-                f"{self.service_url}/v1/completions",
+                f"{self.service_url}/v1/chat/completions",
                 json={
                     "model": self.model_name,
-                    "prompt": prompt,
+                    "messages": messages,
                     "temperature": temp,
                     "max_tokens": max_toks,
                     "stop": ["Sources:", "\n\nSources:"]
@@ -120,27 +130,25 @@ class LLMService:
             )
             response.raise_for_status()
             result = response.json()
-            return result.get("choices", [{}])[0].get("text", "").strip()
+            return result.get("choices", [{}])[0].get("message", {}).get("content", "").strip()
 
         except Exception as e1:
-            logger.warning("OpenAI format failed, trying chat format", error=str(e1))
+            logger.warning("Chat format failed, trying completions format", error=str(e1))
             try:
-                # Format 2: Chat format
+                # Format 2: OpenAI-compatible completions
                 response = self.client.post(
-                    f"{self.service_url}/v1/chat/completions",
+                    f"{self.service_url}/v1/completions",
                     json={
                         "model": self.model_name,
-                        "messages": [
-                            {"role": "system", "content": prompt.split("User question:")[0]},
-                            {"role": "user", "content": prompt.split("User question:")[-1]}
-                        ],
+                        "prompt": prompt,
                         "temperature": temp,
-                        "max_tokens": max_toks
+                        "max_tokens": max_toks,
+                        "stop": ["Sources:", "\n\nSources:"]
                     }
                 )
                 response.raise_for_status()
                 result = response.json()
-                return result.get("choices", [{}])[0].get("message", {}).get("content", "").strip()
+                return result.get("choices", [{}])[0].get("text", "").strip()
 
             except Exception as e2:
                 logger.error("Both API formats failed", error1=str(e1), error2=str(e2))
@@ -186,6 +194,7 @@ Note: This is a mock response. Configure a real LLM service for production use."
 
 def create_llm_service(
     service_url: Optional[str] = None,
+    model_name: str = "mistral:7b",
     use_mock: bool = False
 ):
     """Factory function to create LLM service."""
@@ -193,5 +202,5 @@ def create_llm_service(
         logger.info("Using mock LLM service")
         return MockLLMService()
 
-    return LLMService(service_url=service_url)
+    return LLMService(service_url=service_url, model_name=model_name)
 
