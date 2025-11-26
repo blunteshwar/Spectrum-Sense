@@ -251,6 +251,35 @@ For full integration tests including slow tests:
 pytest tests/test_health_integration.py -v
 ```
 
+### GitHub Actions CI/CD
+
+Health checks automatically run on GitHub Actions for:
+- Pull requests targeting `main`
+- Pushes to `main`
+- Manual workflow dispatch
+
+The CI workflow:
+1. Starts all Docker Compose services (Qdrant, Ollama, API)
+2. Waits for services to be healthy
+3. Downloads the Ollama model
+4. Optionally indexes sample data
+5. Runs health check and integration tests
+6. Cleans up services
+
+View workflow status in the "Actions" tab of your GitHub repository. PRs will show a status check that must pass before merging.
+
+**Setting up Branch Protection (Recommended):**
+
+To require health checks to pass before merging, set up branch protection rules:
+
+1. Go to your repository → Settings → Branches
+2. Add a rule for `main` branch
+3. Enable "Require status checks to pass before merging"
+4. Select "Health Checks and Integration Tests" from the list
+5. Optionally enable "Require branches to be up to date before merging"
+
+This ensures that all PRs are validated before they can be merged to `main`.
+
 ## Manual Steps Required
 
 ### Model Downloads
