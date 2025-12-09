@@ -40,6 +40,7 @@ services:
     volumes:
       - ../data:/app/data
       - ../sample_data:/app/sample_data
+      - ../repos:/app/repos
       # Mount your Slack export directory here if using custom path:
       # - /path/to/your/slack/export:/app/slack_export:ro
     environment:
@@ -54,8 +55,13 @@ services:
       - DATA_DIR=/app/data
       - CHUNKS_DIR=/app/data/chunks
       - SAMPLE_DATA_DIR=/app/sample_data
+      - GITHUB_CLONE_DIR=/app/repos
       # Set SLACK_EXPORT_PATH to use your own Slack export (file or directory)
       # - SLACK_EXPORT_PATH=/app/slack_export
+      # Set SWC_DOCS_URLS_FILE to path of URLs file for SWC docs crawling
+      # - SWC_DOCS_URLS_FILE=/app/sample_data/swc_urls.txt
+      # Set GITHUB_REPO_URL to the repository to index (default: spectrum-web-components)
+      # - GITHUB_REPO_URL=https://github.com/adobe/spectrum-web-components
     depends_on:
       qdrant:
         condition: service_healthy

@@ -30,6 +30,9 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
+# Cloned repos (for GitHub ingestion)
+repos/
+
 # Data
 data/
 *.jsonl

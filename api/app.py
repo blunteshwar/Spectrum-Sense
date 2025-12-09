@@ -21,6 +21,8 @@ from retriever.service import RetrieverService
 from llm_service.serve import create_llm_service, MockLLMService, LLMService
 from ingest.spectrum_crawler import SpectrumCrawler
 from ingest.slack_importer import SlackImporter
+from ingest.swc_docs_crawler import SWCDocsCrawler
+from ingest.github_ingester import GitHubIngester
 from ingest.normalize_and_chunk import process_jsonl
 
 logger = structlog.get_logger(__name__)
@@ -67,7 +69,10 @@ class AnswerResponse(BaseModel):
 
 
 class IngestRequest(BaseModel):
-    source: str = Field("all", description="Source to ingest: 'spectrum', 'slack', or 'all'")
+    source: str = Field("all", description="Source to ingest: 'spectrum', 'slack', 'swc_docs', 'github', or 'all'")
+    urls_file: Optional[str] = Field(None, description="Path to URLs file for swc_docs ingestion")
+    github_repo: Optional[str] = Field(None, description="GitHub repo URL for github ingestion")
+    github_branch: Optional[str] = Field("main", description="Branch to clone for github ingestion")
 
 
 class IngestResponse(BaseModel):
@@ -287,6 +292,68 @@ async def run_ingestion(request: IngestRequest):
             if vector_client:
                 process_chunks_jsonl(slack_chunks, vector_client)
                 logger.info("Indexed Slack chunks")
+
+        if request.source in ["swc_docs", "all"]:
+            logger.info("Starting SWC docs ingestion", task_id=task_id)
+            
+            # Get URLs file path
+            urls_file_path = request.urls_file or os.getenv("SWC_DOCS_URLS_FILE")
+            if not urls_file_path:
+                urls_file_path = str(sample_data_dir / "swc_urls.txt")
+            
+            urls_path = Path(urls_file_path)
+            if not urls_path.exists():
+                error_msg = f"SWC docs URLs file not found: {urls_path}. " \
+                           f"Provide urls_file in request or set SWC_DOCS_URLS_FILE env var"
+                logger.error(error_msg)
+                raise HTTPException(status_code=404, detail=error_msg)
+            
+            logger.info("Crawling SWC docs", urls_file=str(urls_path))
+            crawler = SWCDocsCrawler()
+            results = crawler.crawl_from_file(urls_path)
+            swc_docs_output = data_dir / "swc_docs_raw.jsonl"
+            crawler.save_jsonl(results, swc_docs_output)
+            
+            logger.info("Crawled SWC docs pages", count=len(results))
+
+            # Chunk
+            swc_docs_chunks = chunks_dir / "swc_docs_chunks.jsonl"
+            process_jsonl(swc_docs_output, swc_docs_chunks, "swc_docs")
+
+            # Index
+            from embeddings.compute_embeddings import process_chunks_jsonl
+            if vector_client:
+                process_chunks_jsonl(swc_docs_chunks, vector_client)
+                logger.info("Indexed SWC docs chunks")
+
+        if request.source in ["github", "all"]:
+            logger.info("Starting GitHub ingestion", task_id=task_id)
+            
+            # Get repo URL
+            repo_url = request.github_repo or os.getenv("GITHUB_REPO_URL", "https://github.com/adobe/spectrum-web-components")
+            branch = request.github_branch or os.getenv("GITHUB_BRANCH", "main")
+            clone_dir = os.getenv("GITHUB_CLONE_DIR", "./repos")
+            
+            logger.info("Ingesting GitHub repo", repo=repo_url, branch=branch)
+            ingester = GitHubIngester(
+                extensions={".ts", ".js", ".md", ".css"},
+                clone_dir=clone_dir
+            )
+            results = ingester.ingest_repo(repo_url, branch=branch)
+            github_output = data_dir / "github_raw.jsonl"
+            ingester.save_jsonl(results, github_output)
+            
+            logger.info("Ingested GitHub files", count=len(results))
+
+            # Chunk
+            github_chunks = chunks_dir / "github_chunks.jsonl"
+            process_jsonl(github_output, github_chunks, "github")
+
+            # Index
+            from embeddings.compute_embeddings import process_chunks_jsonl
+            if vector_client:
+                process_chunks_jsonl(github_chunks, vector_client)
+                logger.info("Indexed GitHub chunks")
 
         return IngestResponse(status="started", task_id=task_id)
 

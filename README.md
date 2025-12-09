@@ -1,168 +1,327 @@
-# SpectrumGPT - RAG Chatbot
+# Spectrum Sense - RAG Chatbot for Spectrum Web Components
 
-An internal RAG chatbot that answers questions about Adobe Spectrum and Spectrum Web Components (SWC). Built with a modern stack including FastAPI, Qdrant, Ollama, and Spectrum Web Components.
+A RAG (Retrieval-Augmented Generation) chatbot that answers questions about Spectrum Web Components by indexing:
+- **Documentation pages** from the SWC docs site
+- **Source code** from the GitHub repository
+- **Slack conversations** (optional)
 
-## Features
+Built with FastAPI, Qdrant, Ollama, and Spectrum Web Components.
 
-- **Chat Interface**: Beautiful frontend built with Spectrum Web Components
-- **Ingest Pipeline**: Crawl Spectrum docs and import Slack exports with PII redaction
-- **Embeddings**: Compute embeddings using sentence-transformers
-- **Vector DB**: Index and search using Qdrant
-- **Retriever**: Semantic search with optional BM25 re-ranking
-- **LLM Service**: LLM inference using Ollama (runs locally)
-- **REST API**: FastAPI endpoints for querying and ingestion
+---
 
-![SpectrumGPT Interface](frontend/public/spectrum-icon.svg)
+## Table of Contents
+
+- [How It Works](#how-it-works)
+- [Prerequisites](#prerequisites)
+- [Quick Start](#quick-start)
+- [Ingesting Real Data](#ingesting-real-data)
+- [Architecture](#architecture)
+- [API Reference](#api-reference)
+- [Configuration](#configuration)
+- [Development](#development)
+- [Troubleshooting](#troubleshooting)
+
+---
+
+## How It Works
+
+### Data Flow
+
+```
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│  Data Sources   │ ──▶ │   Ingestion     │ ──▶ │   Vector DB     │
+│                 │     │   Pipeline      │     │   (Qdrant)      │
+│ • SWC Docs URLs │     │                 │     │                 │
+│ • GitHub Repo   │     │ 1. Crawl/Clone  │     │ Embeddings +    │
+│ • Slack Export  │     │ 2. Chunk text   │     │ Metadata        │
+└─────────────────┘     │ 3. Embed        │     └────────┬────────┘
+                        │ 4. Index        │              │
+                        └─────────────────┘              │
+                                                         ▼
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│     User        │ ◀── │   LLM (Ollama)  │ ◀── │   Retriever     │
+│                 │     │                 │     │                 │
+│ Asks question   │     │ Generates       │     │ Semantic search │
+│ Gets answer +   │     │ answer from     │     │ + BM25 rerank   │
+│ sources         │     │ context         │     │                 │
+└─────────────────┘     └─────────────────┘     └─────────────────┘
+```
+
+### How Documentation is Indexed
+
+The **SWC Docs Crawler** (`ingest/swc_docs_crawler.py`):
+1. Reads a list of URLs from a text file (e.g., `sample_data/swc_urls.txt`)
+2. Fetches each page via HTTP
+3. Extracts content using BeautifulSoup (title, headings, body text, code blocks)
+4. Saves to JSONL format
+
+### How GitHub Code is Indexed
+
+The **GitHub Ingester** (`ingest/github_ingester.py`):
+1. Clones the repository using `git clone --depth 1`
+2. Walks through all files matching specified extensions (`.ts`, `.js`, `.md`, `.css`)
+3. Skips `node_modules`, `dist`, `build`, etc.
+4. Extracts file content with metadata (path, title, code structure)
+5. Saves to JSONL format
+
+### Chunking & Embedding
+
+All data sources go through:
+1. **Normalization**: Clean whitespace, extract code blocks
+2. **Chunking**: Split into ~1000 char chunks with 200 char overlap
+3. **Embedding**: Convert to vectors using `sentence-transformers/all-mpnet-base-v2`
+4. **Indexing**: Store in Qdrant vector database
+
+---
+
+## Prerequisites
+
+- **Docker** and **Docker Compose**
+- ~10GB disk space (for models and data)
+- 8GB+ RAM recommended
+
+---
 
 ## Quick Start
 
-### Prerequisites
-
-- Docker and Docker Compose
-
-### Local Development with Docker Compose
-
-1. **Start services**:
-   ```bash
-   cd deploy
-   docker compose up -d
-   ```
-
-   This starts:
-   - Qdrant (vector DB) on port 6333
-   - Ollama (LLM service) on port 11434
-   - API server on port 8000
-   - **Frontend on port 3000** ← Open this in your browser
-
-2. **Download the LLM model** (first time only):
-   ```bash
-   docker exec spectrum-ollama ollama pull mistral:7b
-   ```
-   
-   This downloads the Mistral 7B model (~4GB). You can use other models like `llama2:7b`, `codellama:7b`, etc.
-
-3. **Index sample data**:
-   ```bash
-   ./scripts/reset_local_db.sh
-   ```
-
-3. **Test the API**:
-   ```bash
-   # Health check
-   curl http://localhost:8000/health
-
-   # Query
-   curl -X POST http://localhost:8000/answer \
-     -H "Content-Type: application/json" \
-     -d '{
-       "query": "How do I use sp-popover with pointerdown?",
-       "top_k": 5
-     }'
-
-   # Trigger ingestion
-   curl -X POST http://localhost:8000/ingest/run \
-     -H "Content-Type: application/json" \
-     -d '{"source": "all"}'
-   ```
-
-4. **Open the frontend**:
-   
-   Navigate to http://localhost:3000 in your browser to use the chat interface.
-
-## How to Use
-
-### Using the Chat Interface
-
-1. **Open the app**: Navigate to http://localhost:3000 in your browser
-2. **Ask a question**: Type your question about Spectrum components in the input field
-3. **View the answer**: The assistant will respond with information from the indexed documentation
-4. **Check sources**: Click "View Sources" to see which documents were used to generate the answer
-5. **Copy responses**: Use the copy button to copy answers to your clipboard
-
-### Example Questions
-
-Try asking these questions to get started:
-
-- "How do I use sp-popover with pointerdown?"
-- "What button variants are available?"
-- "How do I create an accessible dialog?"
-- "Explain sp-theme usage"
-- "How to handle form validation?"
-
-### Frontend Features
-
-- **Modern Chat UI**: Clean, responsive interface built with Spectrum Web Components
-- **Source Citations**: Every answer includes clickable source links
-- **Code Formatting**: Code blocks are syntax-highlighted and easy to copy
-- **Suggestion Chips**: Quick-start questions for new users
-- **Mobile Responsive**: Works on all screen sizes
-
-### Frontend Development
-
-For frontend development with hot reload:
+### Step 1: Clone the Repository
 
 ```bash
-cd frontend
-npm install
-npm run dev
+git clone <your-repo-url>
+cd Spectrum-Sense
 ```
 
-The dev server runs at http://localhost:3000 and proxies API requests to the backend at port 8000.
+### Step 2: Start All Services
 
-See `frontend/README.md` for more details on customization and development.
+```bash
+cd deploy
+docker compose up -d
+```
 
-## Project Structure
+This starts:
+| Service | Port | Description |
+|---------|------|-------------|
+| Frontend | 3000 | Chat interface |
+| API | 8000 | FastAPI backend |
+| Qdrant | 6333 | Vector database |
+| Ollama | 11434 | LLM service |
+
+Wait ~60 seconds for services to initialize.
+
+### Step 3: Download the LLM Model
+
+```bash
+docker exec spectrum-ollama ollama pull mistral:7b
+```
+
+This downloads Mistral 7B (~4GB). Other options: `llama2:7b`, `codellama:7b`.
+
+### Step 4: Verify Services
+
+```bash
+# Check all services are healthy
+docker compose ps
+
+# Test API health
+curl http://localhost:8000/health
+```
+
+### Step 5: Open the Chat Interface
+
+Navigate to **http://localhost:3000** in your browser.
+
+---
+
+## Ingesting Real Data
+
+### Option A: Ingest via API (Recommended)
+
+#### 1. Prepare Your URLs File
+
+Edit `sample_data/swc_urls.txt` with documentation URLs (one per line):
 
 ```
-.
-├── frontend/           # Frontend application (Spectrum Web Components)
-│   ├── src/           # Source files
-│   └── Dockerfile     # Frontend container
-├── api/                 # FastAPI application
-│   └── app.py          # Main API endpoints
-├── ingest/             # Ingestion pipeline
-│   ├── spectrum_crawler.py
-│   ├── slack_importer.py
-│   └── normalize_and_chunk.py
-├── embeddings/         # Embedding computation
+https://opensource.adobe.com/spectrum-web-components
+https://opensource.adobe.com/spectrum-web-components/components/button
+https://opensource.adobe.com/spectrum-web-components/components/popover
+# ... more URLs
+```
+
+#### 2. Trigger Ingestion
+
+**Ingest SWC Documentation only:**
+```bash
+curl -X POST http://localhost:8000/ingest/run \
+  -H "Content-Type: application/json" \
+  -d '{
+    "source": "swc_docs",
+    "urls_file": "/app/sample_data/swc_urls.txt"
+  }'
+```
+
+**Ingest GitHub Repository only:**
+```bash
+curl -X POST http://localhost:8000/ingest/run \
+  -H "Content-Type: application/json" \
+  -d '{
+    "source": "github",
+    "github_repo": "https://github.com/adobe/spectrum-web-components",
+    "github_branch": "main"
+  }'
+```
+
+**Ingest Both (Recommended):**
+```bash
+curl -X POST http://localhost:8000/ingest/run \
+  -H "Content-Type: application/json" \
+  -d '{
+    "source": "all",
+    "urls_file": "/app/sample_data/swc_urls.txt",
+    "github_repo": "https://github.com/adobe/spectrum-web-components"
+  }'
+```
+
+### Option B: Ingest via CLI (Local Development)
+
+#### 1. Install Dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+#### 2. Start Qdrant
+
+```bash
+cd deploy
+docker compose up -d qdrant
+```
+
+#### 3. Crawl Documentation
+
+```bash
+python -m ingest.swc_docs_crawler sample_data/swc_urls.txt \
+  --output data/swc_docs_raw.jsonl
+```
+
+#### 4. Clone and Ingest GitHub Repository
+
+```bash
+python -m ingest.github_ingester https://github.com/adobe/spectrum-web-components \
+  --output data/github_raw.jsonl \
+  --branch main \
+  --extensions .ts .js .md .css
+```
+
+#### 5. Chunk the Data
+
+```bash
+# Chunk docs
+python -m ingest.normalize_and_chunk data/swc_docs_raw.jsonl \
+  --output data/chunks/swc_docs_chunks.jsonl \
+  --source swc_docs
+
+# Chunk code
+python -m ingest.normalize_and_chunk data/github_raw.jsonl \
+  --output data/chunks/github_chunks.jsonl \
+  --source github
+```
+
+#### 6. Compute Embeddings and Index
+
+```bash
+# Index docs
+python -m embeddings.compute_embeddings data/chunks/swc_docs_chunks.jsonl
+
+# Index code
+python -m embeddings.compute_embeddings data/chunks/github_chunks.jsonl
+```
+
+### Adding Slack Data (Optional)
+
+1. Export your Slack workspace (JSON format)
+2. Set the environment variable or use CLI:
+
+```bash
+# Via API
+export SLACK_EXPORT_PATH=/path/to/slack/export
+curl -X POST http://localhost:8000/ingest/run \
+  -H "Content-Type: application/json" \
+  -d '{"source": "slack"}'
+
+# Via CLI
+python -m ingest.slack_importer /path/to/slack/export \
+  --output data/slack_raw.jsonl
+```
+
+---
+
+## Architecture
+
+### Project Structure
+
+```
+Spectrum-Sense/
+├── api/                    # FastAPI application
+│   └── app.py             # Main API endpoints
+├── ingest/                 # Data ingestion pipeline
+│   ├── swc_docs_crawler.py    # Crawl docs from URL list
+│   ├── github_ingester.py     # Clone and index GitHub repos
+│   ├── slack_importer.py      # Import Slack exports
+│   ├── spectrum_crawler.py    # Legacy crawler (auto-discovery)
+│   └── normalize_and_chunk.py # Text chunking
+├── embeddings/             # Embedding computation
 │   └── compute_embeddings.py
-├── vector/             # Vector DB client
+├── vector/                 # Vector database client
 │   └── qdrant_client.py
-├── retriever/          # Retrieval service
-│   └── service.py
-├── llm_service/        # LLM inference
-│   └── serve.py
-├── tests/              # Test suite
-├── deploy/             # Docker Compose configs
-├── sample_data/        # Sample data for testing
-└── scripts/            # Utility scripts
+├── retriever/              # Search and retrieval
+│   └── service.py         # Semantic search + BM25 reranking
+├── llm_service/            # LLM integration
+│   └── serve.py           # Ollama client
+├── frontend/               # Chat UI (Spectrum Web Components)
+├── deploy/                 # Docker Compose configuration
+├── sample_data/            # Sample data and URL lists
+│   └── swc_urls.txt       # Documentation URLs to crawl
+├── data/                   # Generated data (gitignored)
+│   └── chunks/            # Chunked documents
+├── repos/                  # Cloned repositories (gitignored)
+└── tests/                  # Test suite
 ```
 
-## API Endpoints
+### Data Sources
+
+| Source | Ingester | Input | Output |
+|--------|----------|-------|--------|
+| SWC Docs | `swc_docs_crawler.py` | URL list file | `swc_docs_raw.jsonl` |
+| GitHub | `github_ingester.py` | Repo URL | `github_raw.jsonl` |
+| Slack | `slack_importer.py` | Export directory | `slack_raw.jsonl` |
+
+---
+
+## API Reference
 
 ### POST /answer
 
-Answer a query using RAG.
+Query the RAG system.
 
-**Request**:
-```json
-{
-  "query": "How do I use sp-popover with pointerdown?",
-  "conversation_id": "optional-string",
-  "top_k": 5
-}
+```bash
+curl -X POST http://localhost:8000/answer \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "How do I use sp-popover?",
+    "top_k": 5
+  }'
 ```
 
-**Response**:
+**Response:**
 ```json
 {
-  "answer": "Short answer...",
+  "answer": "To use sp-popover, you need to...",
   "sources": [
     {
-      "title": "sp-popover",
-      "heading_path": "Components > Popover > Usage",
-      "url": "https://spectrum.adobe.com/...",
-      "snippet": "When opening a popover on pointerdown...",
+      "title": "Popover",
+      "heading_path": "Components > Popover",
+      "url": "https://opensource.adobe.com/spectrum-web-components/components/popover",
+      "snippet": "The sp-popover component...",
       "chunk_id": "abc123"
     }
   ],
@@ -173,201 +332,149 @@ Answer a query using RAG.
 
 ### POST /ingest/run
 
-Trigger ingestion pipeline.
+Trigger data ingestion.
 
-**Request**:
-```json
-{
-  "source": "spectrum|slack|all"
-}
-```
-
-**Response**:
-```json
-{
-  "status": "started",
-  "task_id": "ingest-2025-11-25-1"
-}
+```bash
+curl -X POST http://localhost:8000/ingest/run \
+  -H "Content-Type: application/json" \
+  -d '{
+    "source": "swc_docs|github|slack|all",
+    "urls_file": "/app/sample_data/swc_urls.txt",
+    "github_repo": "https://github.com/adobe/spectrum-web-components",
+    "github_branch": "main"
+  }'
 ```
 
 ### GET /health
 
 Health check endpoint.
 
-## Configuration
-
-Environment variables (see `.env.example`):
-
-- `QDRANT_HOST`: Qdrant host (default: localhost)
-- `QDRANT_PORT`: Qdrant port (default: 6333)
-- `QDRANT_COLLECTION_NAME`: Collection name (default: spectrum_docs)
-- `LLM_SERVICE_URL`: LLM service URL (default: http://ollama:11434)
-- `LLM_MODEL`: Ollama model name (default: mistral:7b)
-- `EMBEDDING_MODEL`: Embedding model (default: sentence-transformers/all-mpnet-base-v2)
-- `RETRIEVER_TOP_K`: Initial retrieval count (default: 50)
-- `USE_BM25_RERANKER`: Enable BM25 re-ranking (default: true)
-- `SLACK_EXPORT_PATH`: Path to your Slack export JSON file or directory (default: `sample_data/slack_sample.json`)
-
-## Switching LLM Models
-
-Ollama supports many models. To use a different model:
-
-1. **Pull a different model**:
-   ```bash
-   docker exec spectrum-ollama ollama pull llama2:7b
-   # or
-   docker exec spectrum-ollama ollama pull codellama:7b
-   # or
-   docker exec spectrum-ollama ollama pull mistral:7b-instruct
-   ```
-
-2. **Update the model name** in `docker-compose.yml`:
-   ```yaml
-   environment:
-     - LLM_MODEL=llama2:7b
-   ```
-
-3. **Restart the API service**:
-   ```bash
-   docker compose restart api
-   ```
-
-## Adding Slack Export
-
-1. **Export Slack data**:
-   - Go to Slack workspace settings
-   - Request export (JSON format)
-   - Download and extract
-
-2. **Configure the export path** (choose one method):
-
-   **Option A: Using environment variable** (recommended for API ingestion):
-   ```bash
-   export SLACK_EXPORT_PATH=/path/to/your/slack/export
-   # Can be a single JSON file or a directory containing channel JSON files
-   ```
-
-   **Option B: Using CLI tool**:
-   ```bash
-   python ingest/slack_importer.py /path/to/slack/export --output data/slack_raw.jsonl
-   ```
-
-3. **Ingest via API** (if using Option A):
-   ```bash
-   curl -X POST http://localhost:8000/ingest/run \
-     -H "Content-Type: application/json" \
-     -d '{"source": "slack"}'
-   ```
-
-   **Or chunk and index manually** (if using Option B):
-   ```bash
-   python ingest/normalize_and_chunk.py data/slack_raw.jsonl --source slack
-   python embeddings/compute_embeddings.py data/chunks/slack_chunks.jsonl
-   ```
-
-## Testing
-
-Run all tests:
 ```bash
-pytest tests/
+curl http://localhost:8000/health
 ```
 
-Run E2E smoke test (requires Qdrant running):
+---
+
+## Configuration
+
+### Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `QDRANT_HOST` | `localhost` | Qdrant hostname |
+| `QDRANT_PORT` | `6333` | Qdrant port |
+| `QDRANT_COLLECTION_NAME` | `spectrum_docs` | Collection name |
+| `LLM_SERVICE_URL` | `http://ollama:11434` | Ollama URL |
+| `LLM_MODEL` | `mistral:7b` | LLM model name |
+| `EMBEDDING_MODEL` | `sentence-transformers/all-mpnet-base-v2` | Embedding model |
+| `RETRIEVER_TOP_K` | `50` | Initial retrieval count |
+| `USE_BM25_RERANKER` | `true` | Enable BM25 reranking |
+| `SWC_DOCS_URLS_FILE` | - | Path to URLs file |
+| `GITHUB_REPO_URL` | `https://github.com/adobe/spectrum-web-components` | Default repo |
+| `GITHUB_BRANCH` | `main` | Default branch |
+| `GITHUB_CLONE_DIR` | `./repos` | Where to clone repos |
+| `SLACK_EXPORT_PATH` | - | Slack export path |
+
+### Changing the LLM Model
+
 ```bash
+# Pull a different model
+docker exec spectrum-ollama ollama pull llama2:7b
+
+# Update docker-compose.yml
+# environment:
+#   - LLM_MODEL=llama2:7b
+
+# Restart API
+docker compose restart api
+```
+
+---
+
+## Development
+
+### Frontend Development
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Dev server runs at http://localhost:3000 with hot reload.
+
+### Running Tests
+
+```bash
+# All tests
+pytest tests/ -v
+
+# E2E tests (requires services running)
 pytest tests/test_e2e.py -v
+
+# Health integration tests
+pytest tests/test_health_integration.py -v
 ```
 
 ### PR Validation
 
-Before merging PRs, run health check and integration tests to verify all services are working:
-
 ```bash
-# Using the validation script (recommended)
 ./scripts/validate_pr.sh
-
-# Or using make
-make test-health
-
-# Or directly with pytest
-pytest tests/test_health_integration.py -v -m "not slow"
 ```
 
-The validation script checks:
-- ✅ All services (Qdrant, Ollama, API) are running and healthy
-- ✅ Ollama has the required model downloaded
-- ✅ LLM service is not using mock (real Ollama integration)
-- ✅ API endpoints return correct structure
-- ✅ RAG pipeline works end-to-end
-
-For full integration tests including slow tests:
-```bash
-pytest tests/test_health_integration.py -v
-```
-
-### GitHub Actions CI/CD
-
-Health checks automatically run on GitHub Actions for:
-- Pull requests targeting `main`
-- Pushes to `main`
-- Manual workflow dispatch
-
-The CI workflow:
-1. Starts all Docker Compose services (Qdrant, Ollama, API)
-2. Waits for services to be healthy
-3. Downloads the Ollama model
-4. Optionally indexes sample data
-5. Runs health check and integration tests
-6. Cleans up services
-
-View workflow status in the "Actions" tab of your GitHub repository. PRs will show a status check that must pass before merging.
-
-**Setting up Branch Protection (Recommended):**
-
-To require health checks to pass before merging, set up branch protection rules:
-
-1. Go to your repository → Settings → Branches
-2. Add a rule for `main` branch
-3. Enable "Require status checks to pass before merging"
-4. Select "Health Checks and Integration Tests" from the list
-5. Optionally enable "Require branches to be up to date before merging"
-
-This ensures that all PRs are validated before they can be merged to `main`.
-
-## Manual Steps Required
-
-### Model Downloads
-
-- **Embedding model**: Automatically downloaded on first use (sentence-transformers)
-- **LLM models**: Manual download required for production:
-  - CPU: Download quantized GGUF models for llama.cpp
+---
 
 ## Troubleshooting
 
-### Qdrant Connection Error
+### Services Not Starting
 
-Ensure Qdrant is running:
 ```bash
-docker ps | grep qdrant
+# Check logs
+docker compose logs
+
+# Check specific service
+docker logs spectrum-api
+```
+
+### API Health Check Failing
+
+```bash
+# Verify Qdrant
 curl http://localhost:6333/health
-```
 
-### LLM Service Not Responding
-
-Check Ollama service:
-```bash
+# Verify Ollama
 curl http://localhost:11434/api/tags
+
+# Check if model is downloaded
+docker exec spectrum-ollama ollama list
 ```
 
-Ensure the model is downloaded:
+### Ingestion Errors
+
 ```bash
-docker exec spectrum-ollama ollama pull mistral:7b
+# Check API logs during ingestion
+docker logs -f spectrum-api
+
+# Verify URLs file exists
+cat sample_data/swc_urls.txt
 ```
 
-### Embedding Model Download
+### Reset Everything
 
-First run will download the model (~420MB). Ensure internet connection.
+```bash
+cd deploy
+docker compose down -v
+docker compose up -d
+```
+
+### Out of Memory
+
+- Reduce `RETRIEVER_TOP_K` value
+- Use a smaller LLM model (e.g., `mistral:7b` instead of `llama2:13b`)
+- Increase Docker memory allocation
+
+---
 
 ## License
 
 Internal use only.
-

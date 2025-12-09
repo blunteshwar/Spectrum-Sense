@@ -191,7 +191,8 @@ def main():
     parser = argparse.ArgumentParser(description="Normalize and chunk JSONL documents")
     parser.add_argument("input", type=Path, help="Input JSONL path")
     parser.add_argument("--output", type=Path, help="Output JSONL path")
-    parser.add_argument("--source", default="spectrum", choices=["spectrum", "slack"], help="Source type")
+    parser.add_argument("--source", default="spectrum", 
+                        choices=["spectrum", "slack", "swc_docs", "github"], help="Source type")
     parser.add_argument("--chunk-size", type=int, default=1000, help="Chunk size in characters")
     parser.add_argument("--chunk-overlap", type=int, default=200, help="Chunk overlap in characters")
 
