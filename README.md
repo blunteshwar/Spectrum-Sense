@@ -1,15 +1,18 @@
-# Spectrum RAG Backend
+# SpectrumGPT - RAG Chatbot
 
-Backend for an internal RAG chatbot that answers questions about Adobe Spectrum and Spectrum Web Components (SWC).
+An internal RAG chatbot that answers questions about Adobe Spectrum and Spectrum Web Components (SWC). Built with a modern stack including FastAPI, Qdrant, Ollama, and Spectrum Web Components.
 
 ## Features
 
+- **Chat Interface**: Beautiful frontend built with Spectrum Web Components
 - **Ingest Pipeline**: Crawl Spectrum docs and import Slack exports with PII redaction
 - **Embeddings**: Compute embeddings using sentence-transformers
 - **Vector DB**: Index and search using Qdrant
 - **Retriever**: Semantic search with optional BM25 re-ranking
 - **LLM Service**: LLM inference using Ollama (runs locally)
 - **REST API**: FastAPI endpoints for querying and ingestion
+
+![SpectrumGPT Interface](frontend/public/spectrum-icon.svg)
 
 ## Quick Start
 
@@ -29,6 +32,7 @@ Backend for an internal RAG chatbot that answers questions about Adobe Spectrum 
    - Qdrant (vector DB) on port 6333
    - Ollama (LLM service) on port 11434
    - API server on port 8000
+   - **Frontend on port 3000** ← Open this in your browser
 
 2. **Download the LLM model** (first time only):
    ```bash
@@ -61,10 +65,59 @@ Backend for an internal RAG chatbot that answers questions about Adobe Spectrum 
      -d '{"source": "all"}'
    ```
 
+4. **Open the frontend**:
+   
+   Navigate to http://localhost:3000 in your browser to use the chat interface.
+
+## How to Use
+
+### Using the Chat Interface
+
+1. **Open the app**: Navigate to http://localhost:3000 in your browser
+2. **Ask a question**: Type your question about Spectrum components in the input field
+3. **View the answer**: The assistant will respond with information from the indexed documentation
+4. **Check sources**: Click "View Sources" to see which documents were used to generate the answer
+5. **Copy responses**: Use the copy button to copy answers to your clipboard
+
+### Example Questions
+
+Try asking these questions to get started:
+
+- "How do I use sp-popover with pointerdown?"
+- "What button variants are available?"
+- "How do I create an accessible dialog?"
+- "Explain sp-theme usage"
+- "How to handle form validation?"
+
+### Frontend Features
+
+- **Modern Chat UI**: Clean, responsive interface built with Spectrum Web Components
+- **Source Citations**: Every answer includes clickable source links
+- **Code Formatting**: Code blocks are syntax-highlighted and easy to copy
+- **Suggestion Chips**: Quick-start questions for new users
+- **Mobile Responsive**: Works on all screen sizes
+
+### Frontend Development
+
+For frontend development with hot reload:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+The dev server runs at http://localhost:3000 and proxies API requests to the backend at port 8000.
+
+See `frontend/README.md` for more details on customization and development.
+
 ## Project Structure
 
 ```
 .
+├── frontend/           # Frontend application (Spectrum Web Components)
+│   ├── src/           # Source files
+│   └── Dockerfile     # Frontend container
 ├── api/                 # FastAPI application
 │   └── app.py          # Main API endpoints
 ├── ingest/             # Ingestion pipeline

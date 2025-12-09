@@ -15,8 +15,9 @@ This starts:
 - **Qdrant** (vector database) on `http://localhost:6333`
 - **Ollama** (LLM service) on `http://localhost:11434`
 - **API Server** on `http://localhost:8000`
+- **Frontend** on `http://localhost:3000` ⬅️ **Open this in your browser!**
 
-Wait for all services to be healthy (about 30 seconds).
+Wait for all services to be healthy (about 60 seconds for first build).
 
 ### Download LLM Model
 
@@ -42,7 +43,18 @@ This will:
 4. Compute embeddings
 5. Index into Qdrant
 
-## Step 3: Test the API
+## Step 3: Open the Frontend
+
+Navigate to **http://localhost:3000** in your browser.
+
+You'll see the SpectrumGPT chat interface. Try asking questions about Spectrum components!
+
+### Example Questions
+- "How do I use sp-popover with pointerdown?"
+- "What button variants are available?"
+- "How do I create an accessible dialog?"
+
+## Step 4: Test the API (Optional)
 
 ### Health Check
 
@@ -138,6 +150,19 @@ cd ..
 ## Next Steps
 
 - See `README.md` for full documentation
+- See `frontend/README.md` for frontend customization
 - See `design_notes.md` for architecture details
 - Run tests: `pytest tests/ -v`
+
+## Frontend Development
+
+For frontend development with hot reload:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+The dev server runs at http://localhost:3000 and proxies API requests to the backend.
 
