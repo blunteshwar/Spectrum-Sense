@@ -56,7 +56,7 @@ def test_e2e_smoke():
         try:
             # Chunk
             chunks_path = tempfile.mktemp(suffix='.jsonl')
-            process_jsonl(temp_jsonl, Path(chunks_path), "spectrum")
+            process_jsonl(temp_jsonl, Path(chunks_path), "swc_docs")
             
             # Index
             embedding_computer = EmbeddingComputer()

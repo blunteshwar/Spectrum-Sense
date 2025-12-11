@@ -11,15 +11,126 @@ Built with FastAPI, Qdrant, Ollama, and Spectrum Web Components.
 
 ## Table of Contents
 
-- [How It Works](#how-it-works)
 - [Prerequisites](#prerequisites)
 - [Quick Start](#quick-start)
-- [Ingesting Real Data](#ingesting-real-data)
+  - [Step 1: Clone This Repository](#step-1-clone-this-repository)
+  - [Step 2: Add Your Documentation URLs](#step-2-add-your-documentation-urls)
+  - [Step 3: Start All Services](#step-3-start-all-services)
+  - [Step 4: Download the LLM Model](#step-4-download-the-llm-model)
+  - [Step 5: Ingest Data](#step-5-ingest-data)
+  - [Step 6: Verify and Use](#step-6-verify-and-use)
+- [How It Works](#how-it-works)
+- [Data Ingestion](#data-ingestion)
+  - [Ingesting All Sources](#ingesting-all-sources)
+  - [Ingesting Individual Sources](#ingesting-individual-sources)
+  - [Controlling Ingestion](#controlling-ingestion)
+  - [Ingesting via CLI](#ingesting-via-cli)
+- [Rebuilding After Code Changes](#rebuilding-after-code-changes)
+- [Resetting Ingested Data](#resetting-ingested-data)
 - [Architecture](#architecture)
 - [API Reference](#api-reference)
 - [Configuration](#configuration)
 - [Development](#development)
 - [Troubleshooting](#troubleshooting)
+
+---
+
+## Prerequisites
+
+- **Docker** and **Docker Compose**
+- ~10GB disk space (for models and data)
+- 8GB+ RAM recommended
+
+---
+
+## Quick Start
+
+### Step 1: Clone This Repository
+
+```bash
+git clone <your-repo-url>
+cd Spectrum-Sense
+```
+
+### Step 2: Add Your Documentation URLs
+
+Edit `sample_data/swc_urls.txt` with the documentation pages you want to index (one URL per line):
+
+```
+https://opensource.adobe.com/spectrum-web-components
+https://opensource.adobe.com/spectrum-web-components/getting-started
+https://opensource.adobe.com/spectrum-web-components/components/button
+https://opensource.adobe.com/spectrum-web-components/components/popover
+# ... add all your URLs
+```
+
+> **Note:** The file already contains 122 URLs for SWC documentation. You can use it as-is or modify it.
+
+### Step 3: Start All Services
+
+```bash
+cd deploy
+docker compose up -d
+```
+
+This starts:
+| Service | Port | Description |
+|---------|------|-------------|
+| Frontend | 3000 | Chat interface |
+| API | 8000 | FastAPI backend |
+| Qdrant | 6333 | Vector database |
+| Ollama | 11434 | LLM service |
+
+Wait ~60 seconds for services to initialize.
+
+### Step 4: Download the LLM Model
+
+```bash
+docker exec spectrum-ollama ollama pull mistral:7b
+```
+
+This downloads Mistral 7B (~4GB). Other options: `llama2:7b`, `codellama:7b`.
+
+### Step 5: Ingest Data
+
+Run this command to ingest both the documentation site AND the GitHub codebase (with real-time streaming logs):
+
+```bash
+curl -N -X POST http://localhost:8000/ingest/run/stream \
+  -H "Content-Type: application/json" \
+  -d '{
+    "source": "all",
+    "urls_file": "/app/sample_data/swc_urls.txt",
+    "github_repo": "https://github.com/adobe/spectrum-web-components"
+  }'
+```
+
+> 💡 The `-N` flag disables buffering so you see logs as they stream in real-time.
+
+**Streaming log output example:**
+```json
+data: {"timestamp": "2025-12-11T10:30:00", "level": "info", "message": "Starting ingestion pipeline", "task_id": "ingest-2025-12-11-103000"}
+data: {"timestamp": "2025-12-11T10:30:01", "level": "info", "message": "Crawling [1/5]: https://opensource.adobe.com/..."}
+data: {"timestamp": "2025-12-11T10:30:15", "level": "success", "message": "SWC docs chunks indexed successfully"}
+```
+
+**What happens automatically:**
+1. **Documentation**: Fetches all pages from `swc_urls.txt`, extracts content
+2. **GitHub**: **Clones the repo automatically** (you don't need to clone it manually), indexes `.ts`, `.js`, `.md`, `.css` files
+3. **Processing**: Chunks text, computes embeddings, indexes into Qdrant
+
+> ⏱️ This may take 45-85 minutes depending on the number of URLs and repo size.
+
+Press `Ctrl+C` to stop watching logs (ingestion continues in background).
+
+### Step 6: Verify and Use
+
+```bash
+# Check health (should show points count > 0)
+curl http://localhost:8000/health
+```
+
+Open **http://localhost:3000** in your browser and start asking questions!
 
 ---
 
@@ -57,12 +168,17 @@ The **SWC Docs Crawler** (`ingest/swc_docs_crawler.py`):
 
 ### How GitHub Code is Indexed
 
-The **GitHub Ingester** (`ingest/github_ingester.py`):
-1. Clones the repository using `git clone --depth 1`
-2. Walks through all files matching specified extensions (`.ts`, `.js`, `.md`, `.css`)
-3. Skips `node_modules`, `dist`, `build`, etc.
-4. Extracts file content with metadata (path, title, code structure)
-5. Saves to JSONL format
+The **GitHub Ingester** (`ingest/github_ingester.py`) **automatically clones the repository** - you don't need to clone it manually:
+
+1. **Clones automatically** using `git clone --depth 1` (shallow clone, only latest commit)
+2. If already cloned, pulls latest changes
+3. Walks through all files matching specified extensions (`.ts`, `.js`, `.md`, `.css`)
+4. **Skips directories**: `node_modules`, `dist`, `build`, `test`, `tests`, `stories`, `.git`, etc.
+5. **Skips files**: test files (`.test.ts`, `.spec.js`), stories (`.stories.ts`), declaration files (`.d.ts`)
+6. Extracts file content with metadata (path, title, code structure)
+7. Saves to JSONL format
+
+The cloned repo is stored in the `repos/` directory (gitignored).
 
 ### Chunking & Embedding
 
@@ -74,105 +190,14 @@ All data sources go through:
 
 ---
 
-## Prerequisites
+## Data Ingestion
 
-- **Docker** and **Docker Compose**
-- ~10GB disk space (for models and data)
-- 8GB+ RAM recommended
+### Ingesting All Sources
 
----
-
-## Quick Start
-
-### Step 1: Clone the Repository
+Ingest documentation, GitHub code, and Slack (if configured) with streaming logs:
 
 ```bash
-git clone <your-repo-url>
-cd Spectrum-Sense
-```
-
-### Step 2: Start All Services
-
-```bash
-cd deploy
-docker compose up -d
-```
-
-This starts:
-| Service | Port | Description |
-|---------|------|-------------|
-| Frontend | 3000 | Chat interface |
-| API | 8000 | FastAPI backend |
-| Qdrant | 6333 | Vector database |
-| Ollama | 11434 | LLM service |
-
-Wait ~60 seconds for services to initialize.
-
-### Step 3: Download the LLM Model
-
-```bash
-docker exec spectrum-ollama ollama pull mistral:7b
-```
-
-This downloads Mistral 7B (~4GB). Other options: `llama2:7b`, `codellama:7b`.
-
-### Step 4: Verify Services
-
-```bash
-# Check all services are healthy
-docker compose ps
-
-# Test API health
-curl http://localhost:8000/health
-```
-
-### Step 5: Open the Chat Interface
-
-Navigate to **http://localhost:3000** in your browser.
-
----
-
-## Ingesting Real Data
-
-### Option A: Ingest via API (Recommended)
-
-#### 1. Prepare Your URLs File
-
-Edit `sample_data/swc_urls.txt` with documentation URLs (one per line):
-
-```
-https://opensource.adobe.com/spectrum-web-components
-https://opensource.adobe.com/spectrum-web-components/components/button
-https://opensource.adobe.com/spectrum-web-components/components/popover
-# ... more URLs
-```
-
-#### 2. Trigger Ingestion
-
-**Ingest SWC Documentation only:**
-```bash
-curl -X POST http://localhost:8000/ingest/run \
-  -H "Content-Type: application/json" \
-  -d '{
-    "source": "swc_docs",
-    "urls_file": "/app/sample_data/swc_urls.txt"
-  }'
-```
-
-**Ingest GitHub Repository only:**
-```bash
-curl -X POST http://localhost:8000/ingest/run \
-  -H "Content-Type: application/json" \
-  -d '{
-    "source": "github",
-    "github_repo": "https://github.com/adobe/spectrum-web-components",
-    "github_branch": "main"
-  }'
-```
-
-**Ingest Both (Recommended):**
-```bash
-curl -X POST http://localhost:8000/ingest/run \
+curl -N -X POST http://localhost:8000/ingest/run/stream \
   -H "Content-Type: application/json" \
   -d '{
     "source": "all",
@@ -181,7 +206,118 @@ curl -X POST http://localhost:8000/ingest/run \
   }'
 ```
 
-### Option B: Ingest via CLI (Local Development)
+**Alternative: Non-streaming endpoint**
+
+If you prefer a simple response without streaming logs:
+```bash
+curl -X POST http://localhost:8000/ingest/run \
+  -H "Content-Type: application/json" \
+  -d '{"source": "all", "urls_file": "/app/sample_data/swc_urls.txt", "github_repo": "https://github.com/adobe/spectrum-web-components"}'
+```
+
+Then watch progress via Docker logs:
+```bash
+docker logs -f spectrum-api
+```
+
+### Ingesting Individual Sources
+
+#### Documentation Only
+
+```bash
+curl -N -X POST http://localhost:8000/ingest/run/stream \
+  -H "Content-Type: application/json" \
+  -d '{
+    "source": "swc_docs",
+    "urls_file": "/app/sample_data/swc_urls.txt"
+  }'
+```
+
+#### GitHub Repository Only
+
+The script **automatically clones** the repository - you don't need to clone it manually.
+
+```bash
+curl -N -X POST http://localhost:8000/ingest/run/stream \
+  -H "Content-Type: application/json" \
+  -d '{
+    "source": "github",
+    "github_repo": "https://github.com/adobe/spectrum-web-components",
+    "github_branch": "main"
+  }'
+```
+
+**What the script does:**
+1. Clones the repo to `repos/spectrum-web-components/` (shallow clone, latest commit only)
+2. If already cloned, pulls latest changes
+3. Walks all `.ts`, `.js`, `.md`, `.css` files (skips `node_modules`, `dist`, test files, etc.)
+4. Extracts content and indexes it
+
+#### Slack Data (Optional)
+
+1. Export your Slack workspace (JSON format)
+2. Set the environment variable or use CLI:
+
+```bash
+# Via API
+export SLACK_EXPORT_PATH=/path/to/slack/export
+curl -N -X POST http://localhost:8000/ingest/run/stream \
+  -H "Content-Type: application/json" \
+  -d '{"source": "slack"}'
+
+# Via CLI
+python -m ingest.slack_importer /path/to/slack/export \
+  --output data/slack_raw.jsonl
+```
+
+### Controlling Ingestion
+
+#### Check Ingestion Status
+
+```bash
+curl http://localhost:8000/ingest/status
+```
+
+**Response:**
+```json
+{
+  "is_running": true,
+  "task_id": "ingest-2025-12-11-103000",
+  "started_at": "2025-12-11T10:30:00.123456",
+  "cancel_requested": false
+}
+```
+
+#### Cancel Running Ingestion
+
+To stop an in-progress ingestion:
+
+```bash
+curl -X POST http://localhost:8000/ingest/cancel
+```
+
+**Response:**
+```json
+{
+  "status": "cancelled",
+  "message": "Cancellation requested. The ingestion will stop after the current operation completes.",
+  "task_id": "ingest-2025-12-11-103000"
+}
+```
+
+> **Note:** The ingestion will stop gracefully after the current URL or file is processed. Already indexed data is preserved.
+
+#### Alternative: Force Stop (Restart Container)
+
+If you need to stop immediately without waiting:
+
+```bash
+docker restart spectrum-api
+```
+
+### Ingesting via CLI (Local Development)
+
+If you prefer running ingestion locally instead of via the API:
 
 #### 1. Install Dependencies
 
@@ -203,7 +339,9 @@ python -m ingest.swc_docs_crawler sample_data/swc_urls.txt \
   --output data/swc_docs_raw.jsonl
 ```
 
-#### 4. Clone and Ingest GitHub Repository
+#### 4. Ingest GitHub Repository
+
+**The script clones the repo automatically** - you don't need to clone it yourself:
 
 ```bash
 python -m ingest.github_ingester https://github.com/adobe/spectrum-web-components \
@@ -211,6 +349,10 @@ python -m ingest.github_ingester https://github.com/adobe/spectrum-web-component
   --branch main \
   --extensions .ts .js .md .css
 ```
+
+This will:
+- Clone to `repos/spectrum-web-components/` (or pull if already exists)
+- Index all matching files
 
 #### 5. Chunk the Data
 
@@ -236,21 +378,99 @@ python -m embeddings.compute_embeddings data/chunks/swc_docs_chunks.jsonl
 python -m embeddings.compute_embeddings data/chunks/github_chunks.jsonl
 ```
 
-### Adding Slack Data (Optional)
+---
 
-1. Export your Slack workspace (JSON format)
-2. Set the environment variable or use CLI:
+## Rebuilding After Code Changes
+
+If you modify the ingestion code, URL list, or any Python files, you need to rebuild and restart the API container:
+
+### When to Rebuild
+
+Rebuild is required when you change:
+- Any Python file (`api/`, `ingest/`, `embeddings/`, etc.)
+- `requirements.txt` or `requirements-prod.txt`
+- `Dockerfile`
+
+Rebuild is **NOT** required when you only change:
+- `sample_data/swc_urls.txt` (just re-run ingestion)
+- `docker-compose.yml` (just restart)
+
+### How to Rebuild
 
 ```bash
-# Via API
-export SLACK_EXPORT_PATH=/path/to/slack/export
-curl -X POST http://localhost:8000/ingest/run \
-  -H "Content-Type: application/json" \
-  -d '{"source": "slack"}'
+cd deploy
 
-# Via CLI
-python -m ingest.slack_importer /path/to/slack/export \
-  --output data/slack_raw.jsonl
+# Rebuild the API container
+docker compose build api
+
+# Restart with new image
+docker compose up -d api
+
+# Wait for it to be healthy (~45 seconds)
+docker compose ps api
+```
+
+### Force Full Rebuild (if caching issues)
+
+```bash
+docker compose build api --no-cache
+docker compose up -d api
+```
+
+### Watch Logs After Restart
+
+```bash
+docker logs -f spectrum-api
+```
+
+---
+
+## Resetting Ingested Data
+
+If you want to clear all indexed data and start fresh:
+
+### Option 1: Delete Collection via API (Quick)
+
+```bash
+# Delete the Qdrant collection
+curl -X DELETE http://localhost:6333/collections/spectrum_docs
+
+# Restart API (recreates empty collection)
+cd deploy
+docker compose restart api
+
+# Wait for healthy
+sleep 45 && curl http://localhost:8000/health
+```
+
+### Option 2: Full Volume Reset (Complete Wipe)
+
+```bash
+cd deploy
+
+# Stop all services
+docker compose down
+
+# Remove Qdrant data volume
+docker volume rm deploy_qdrant_data
+
+# Start fresh
+docker compose up -d
+
+# Wait for services
+sleep 60 && docker compose ps
+```
+
+### After Reset: Re-ingest Data
+
+```bash
+curl -N -X POST http://localhost:8000/ingest/run/stream \
+  -H "Content-Type: application/json" \
+  -d '{
+    "source": "all",
+    "urls_file": "/app/sample_data/swc_urls.txt",
+    "github_repo": "https://github.com/adobe/spectrum-web-components"
+  }'
 ```
 
 ---
@@ -332,7 +552,7 @@ curl -X POST http://localhost:8000/answer \
 
 ### POST /ingest/run
 
-Trigger data ingestion.
+Trigger data ingestion (non-streaming).
 
 ```bash
 curl -X POST http://localhost:8000/ingest/run \
@@ -343,6 +563,55 @@ curl -X POST http://localhost:8000/ingest/run \
     "github_repo": "https://github.com/adobe/spectrum-web-components",
     "github_branch": "main"
   }'
+```
+
+### POST /ingest/run/stream
+
+Trigger data ingestion with streaming logs (SSE).
+
+```bash
+curl -N -X POST http://localhost:8000/ingest/run/stream \
+  -H "Content-Type: application/json" \
+  -d '{
+    "source": "all",
+    "urls_file": "/app/sample_data/swc_urls.txt",
+    "github_repo": "https://github.com/adobe/spectrum-web-components"
+  }'
+```
+
+### GET /ingest/status
+
+Get current ingestion status.
+
+```bash
+curl http://localhost:8000/ingest/status
+```
+
+**Response:**
+```json
+{
+  "is_running": true,
+  "task_id": "ingest-2025-12-11-103000",
+  "started_at": "2025-12-11T10:30:00.123456",
+  "cancel_requested": false
+}
+```
+
+### POST /ingest/cancel
+
+Cancel a running ingestion.
+
+```bash
+curl -X POST http://localhost:8000/ingest/cancel
+```
+
+**Response:**
+```json
+{
+  "status": "cancelled",
+  "message": "Cancellation requested. The ingestion will stop after the current operation completes.",
+  "task_id": "ingest-2025-12-11-103000"
+}
 ```
 
 ### GET /health
@@ -455,16 +724,52 @@ docker exec spectrum-ollama ollama list
 # Check API logs during ingestion
 docker logs -f spectrum-api
 
+# Check ingestion status
+curl http://localhost:8000/ingest/status
+
 # Verify URLs file exists
 cat sample_data/swc_urls.txt
 ```
 
-### Reset Everything
+### Ingestion Running Too Long
+
+```bash
+# Check status
+curl http://localhost:8000/ingest/status
+
+# Cancel gracefully
+curl -X POST http://localhost:8000/ingest/cancel
+
+# Or force stop
+docker restart spectrum-api
+```
+
+### Reset Qdrant Only (Keep LLM Models)
+
+Deletes indexed data but preserves downloaded LLM models:
+
+```bash
+cd deploy
+docker compose down
+docker volume rm deploy_qdrant_data
+docker compose up -d
+```
+
+Then re-ingest your data.
+
+### Full Reset (Delete Everything)
+
+Deletes ALL data including:
+- Qdrant indexed vectors (requires re-ingestion)
+- Ollama models (requires re-downloading ~4GB)
 
 ```bash
 cd deploy
 docker compose down -v
 docker compose up -d
+
+# Re-download LLM model
+docker exec spectrum-ollama ollama pull mistral:7b
 ```
 
 ### Out of Memory

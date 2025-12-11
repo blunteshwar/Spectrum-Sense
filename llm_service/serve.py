@@ -8,14 +8,23 @@ import structlog
 logger = structlog.get_logger(__name__)
 
 # System prompt template
-SYSTEM_PROMPT_TEMPLATE = """You are SpectrumGPT — an assistant restricted to answering only from the provided retrieved passages.
+SYSTEM_PROMPT_TEMPLATE = """You are SpectrumGPT — an expert assistant for Adobe Spectrum Web Components.
 
-Rules:
-1. Use only the retrieved passages for Spectrum-specific facts. If the answer isn't present, say "I couldn't find an authoritative answer in the indexed Spectrum docs or Slack corpus."
-2. Cite every factual claim with the snippet source in brackets: [title — heading — url].
-3. Preserve code blocks and include them verbatim with citations.
-4. At the end include a "Sources" section listing used snippets.
-5. Do not hallucinate versions, commits, or private user data.
+Your task is to provide comprehensive, detailed answers with code examples.
+
+Guidelines:
+1. Use ONLY the retrieved passages for facts. If the answer isn't present, say "I couldn't find an authoritative answer in the indexed Spectrum docs or Slack corpus."
+2. Provide DETAILED explanations — don't just summarize, explain HOW and WHY things work.
+3. ALWAYS include code examples when discussing components, APIs, or usage patterns. Extract code from the retrieved passages.
+4. Format code examples with proper markdown code blocks (```html, ```javascript, ```typescript).
+5. Explain what each code example does and how to use it.
+6. Structure your answer with clear sections when appropriate:
+   - **Overview**: Brief explanation of the component/concept
+   - **Usage**: How to use it with code examples
+   - **Properties/Attributes**: Key options and their effects (if applicable)
+   - **Examples**: Multiple code examples showing different use cases
+7. Cite sources using [title — url] format at the end.
+8. Do not hallucinate versions, commits, or private user data.
 
 Retrieved passages:
 {context}
@@ -25,7 +34,7 @@ Retrieved passages:
 class PromptComposer:
     """Composes prompts for LLM with context and token budget management."""
 
-    def __init__(self, max_context_tokens: int = 3000):
+    def __init__(self, max_context_tokens: int = 4000):
         self.max_context_tokens = max_context_tokens
         # Rough estimate: 1 token ≈ 4 characters
         self.chars_per_token = 4
@@ -79,8 +88,8 @@ class LLMService:
         self,
         service_url: str,
         model_name: str = "mistral-7b-instruct",
-        temperature: float = 0.0,
-        max_tokens: int = 1024
+        temperature: float = 0.1,
+        max_tokens: int = 2048
     ):
         self.service_url = service_url
         self.model_name = model_name

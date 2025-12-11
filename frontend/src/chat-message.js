@@ -90,20 +90,24 @@ class ChatMessage extends LitElement {
         }
 
         .message-text code {
-            background: rgba(0, 0, 0, 0.06);
+            background: #f1f3f4;
+            color: #d63384;
             padding: 2px 6px;
             border-radius: 4px;
             font-family: 'SF Mono', Monaco, 'Courier New', monospace;
             font-size: 13px;
+            border: 1px solid #e0e0e0;
         }
 
         .message-content.user .message-text code {
             background: rgba(255, 255, 255, 0.2);
+            color: #fff;
+            border-color: rgba(255, 255, 255, 0.3);
         }
 
         .message-text pre {
-            background: #1e1e1e;
-            color: #d4d4d4;
+            background: #1e1e2e;
+            color: #cdd6f4;
             padding: 16px;
             border-radius: 8px;
             overflow-x: auto;
@@ -111,16 +115,94 @@ class ChatMessage extends LitElement {
             font-family: 'SF Mono', Monaco, 'Courier New', monospace;
             font-size: 13px;
             line-height: 1.5;
+            border: 1px solid #313244;
         }
 
         .message-text pre code {
             background: transparent;
             padding: 0;
-            color: inherit;
+            color: #cdd6f4;
+            white-space: pre;
+            display: block;
+        }
+
+        /* Syntax highlighting colors */
+        .message-text pre .keyword { color: #cba6f7; }
+        .message-text pre .string { color: #a6e3a1; }
+        .message-text pre .comment { color: #6c7086; font-style: italic; }
+        .message-text pre .tag { color: #89b4fa; }
+        .message-text pre .attr { color: #f9e2af; }
+
+        .code-block-wrapper {
+            position: relative;
+            margin: 12px 0;
+        }
+
+        .code-lang-label {
+            position: absolute;
+            top: 0;
+            right: 0;
+            background: #45475a;
+            color: #bac2de;
+            padding: 4px 10px;
+            font-size: 11px;
+            border-radius: 0 8px 0 6px;
+            font-family: 'SF Mono', Monaco, monospace;
+            text-transform: uppercase;
+        }
+
+        .copy-code-button {
+            position: absolute;
+            top: 8px;
+            right: 70px;
+            background: #45475a;
+            border: none;
+            color: #bac2de;
+            padding: 4px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 11px;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+
+        .code-block-wrapper:hover .copy-code-button {
+            opacity: 1;
+        }
+
+        .copy-code-button:hover {
+            background: #585b70;
+            color: #cdd6f4;
         }
 
         .message-text strong {
             font-weight: 600;
+        }
+
+        .message-text em {
+            font-style: italic;
+        }
+
+        .message-text a {
+            color: #0d66d0;
+            text-decoration: none;
+            border-bottom: 1px solid rgba(13, 102, 208, 0.3);
+            transition: all 0.2s ease;
+        }
+
+        .message-text a:hover {
+            color: #0a4f9e;
+            border-bottom-color: #0a4f9e;
+        }
+
+        .message-content.user .message-text a {
+            color: #b3d4fc;
+            border-bottom-color: rgba(179, 212, 252, 0.4);
+        }
+
+        .message-content.user .message-text a:hover {
+            color: white;
+            border-bottom-color: white;
         }
 
         .message-text ul, .message-text ol {
@@ -130,6 +212,10 @@ class ChatMessage extends LitElement {
 
         .message-text li {
             margin: 4px 0;
+        }
+
+        .message-text br + br {
+            display: none;
         }
 
         .message-footer {
@@ -303,23 +389,61 @@ class ChatMessage extends LitElement {
     _formatContent(content) {
         if (!content) return '';
 
-        // Convert markdown-style formatting
-        let formatted = content
-            // Code blocks
-            .replace(/```(\w+)?\n([\s\S]*?)```/g, '<pre><code>$2</code></pre>')
-            // Inline code
-            .replace(/`([^`]+)`/g, '<code>$1</code>')
+        // First, extract and protect code blocks
+        const codeBlocks = [];
+        let processed = content.replace(/```(\w*)\n?([\s\S]*?)```/g, (match, lang, code) => {
+            const index = codeBlocks.length;
+            const escapedCode = this._escapeHtml(code.trim());
+            const langLabel = lang ? `<span class="code-lang-label">${lang}</span>` : '';
+            codeBlocks.push(`<div class="code-block-wrapper">${langLabel}<pre><code>${escapedCode}</code></pre></div>`);
+            return `__CODE_BLOCK_${index}__`;
+        });
+
+        // Apply other formatting
+        processed = processed
+            // Inline code (escape HTML inside)
+            .replace(/`([^`]+)`/g, (match, code) => `<code>${this._escapeHtml(code)}</code>`)
             // Bold
             .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+            // Italic
+            .replace(/\*([^*]+)\*/g, '<em>$1</em>')
             // Links
-            .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>')
-            // Line breaks to paragraphs
-            .split('\n\n')
-            .filter(p => p.trim())
-            .map(p => `<p>${p}</p>`)
-            .join('');
+            .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')
+            // Bullet lists
+            .replace(/^[\s]*[-*]\s+(.+)$/gm, '<li>$1</li>')
+            // Numbered lists
+            .replace(/^[\s]*\d+\.\s+(.+)$/gm, '<li>$1</li>');
 
-        return formatted;
+        // Wrap consecutive <li> tags in <ul>
+        processed = processed.replace(/(<li>[\s\S]*?<\/li>)+/g, '<ul>$&</ul>');
+
+        // Split into paragraphs (but not code block placeholders)
+        const paragraphs = processed.split(/\n\n+/).filter(p => p.trim());
+        processed = paragraphs.map(p => {
+            p = p.trim();
+            // Don't wrap code block placeholders, lists, or already-wrapped elements
+            if (p.startsWith('__CODE_BLOCK_') || p.startsWith('<ul>') || p.startsWith('<div')) {
+                return p;
+            }
+            // Replace single newlines with <br>
+            p = p.replace(/\n/g, '<br>');
+            return `<p>${p}</p>`;
+        }).join('');
+
+        // Restore code blocks
+        codeBlocks.forEach((block, index) => {
+            processed = processed.replace(`__CODE_BLOCK_${index}__`, block);
+            // Also handle case where it got wrapped in <p>
+            processed = processed.replace(`<p>__CODE_BLOCK_${index}__</p>`, block);
+        });
+
+        return processed;
+    }
+
+    _escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
     }
 
     _truncate(text, maxLength) {

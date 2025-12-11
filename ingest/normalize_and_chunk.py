@@ -100,7 +100,7 @@ def process_document(
     doc: Dict,
     chunker: Chunker,
     normalizer: TextNormalizer,
-    source_type: str = "spectrum"
+    source_type: str = "swc_docs"
 ) -> List[Dict]:
     """Process a single document into chunks."""
     # Combine body and code blocks
@@ -155,7 +155,7 @@ def process_document(
     return chunk_docs
 
 
-def process_jsonl(input_path: Path, output_path: Path, source_type: str = "spectrum"):
+def process_jsonl(input_path: Path, output_path: Path, source_type: str = "swc_docs"):
     """Process a JSONL file and create chunked output."""
     normalizer = TextNormalizer()
     chunker = Chunker(chunk_size=1000, chunk_overlap=200)
@@ -191,8 +191,8 @@ def main():
     parser = argparse.ArgumentParser(description="Normalize and chunk JSONL documents")
     parser.add_argument("input", type=Path, help="Input JSONL path")
     parser.add_argument("--output", type=Path, help="Output JSONL path")
-    parser.add_argument("--source", default="spectrum", 
-                        choices=["spectrum", "slack", "swc_docs", "github"], help="Source type")
+    parser.add_argument("--source", default="swc_docs", 
+                        choices=["swc_docs", "github", "slack"], help="Source type")
     parser.add_argument("--chunk-size", type=int, default=1000, help="Chunk size in characters")
     parser.add_argument("--chunk-overlap", type=int, default=200, help="Chunk overlap in characters")
 

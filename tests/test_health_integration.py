@@ -221,7 +221,7 @@ class TestIngestionIntegration:
         """Test that /ingest/run endpoint returns correct structure."""
         response = api_client.post(
             "/ingest/run",
-            json={"source": "spectrum"},
+            json={"source": "swc_docs"},
             timeout=120.0  # Ingestion can take time
         )
         

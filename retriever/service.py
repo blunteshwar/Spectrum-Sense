@@ -10,15 +10,25 @@ logger = structlog.get_logger(__name__)
 class RetrieverService:
     """Retrieves and optionally re-ranks chunks."""
 
+    # Source-based boost factors for ranking
+    # Higher values = higher priority in search results
+    SOURCE_BOOST = {
+        "swc_docs": 1.3,   # 30% boost for documentation
+        "github": 1.0,      # No boost for code
+        "slack": 1.1,       # Slight boost for Slack discussions
+    }
+
     def __init__(
         self,
         vector_client,  # QdrantClientWrapper
         embedding_computer,  # EmbeddingComputer
-        use_bm25_reranker: bool = True
+        use_bm25_reranker: bool = True,
+        source_boost: Optional[Dict[str, float]] = None
     ):
         self.vector_client = vector_client
         self.embedding_computer = embedding_computer
         self.use_bm25_reranker = use_bm25_reranker
+        self.source_boost = source_boost or self.SOURCE_BOOST
         self.bm25_index = None
         self.bm25_corpus = []
 
@@ -120,11 +130,17 @@ class RetrieverService:
             # Weighted combination (70% vector, 30% BM25)
             combined_score = 0.7 * vector_score + 0.3 * normalized_bm25
 
+            # Apply source-based boost (docs get higher priority than code)
+            source = result.get("payload", {}).get("source", "")
+            source_boost = self.source_boost.get(source, 1.0)
+            final_score = combined_score * source_boost
+
             combined_results.append({
                 **result,
-                "score": combined_score,
+                "score": final_score,
                 "vector_score": vector_score,
-                "bm25_score": normalized_bm25
+                "bm25_score": normalized_bm25,
+                "source_boost": source_boost
             })
 
         # Sort by combined score

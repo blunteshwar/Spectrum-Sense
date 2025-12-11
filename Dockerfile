@@ -11,13 +11,13 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
-# Copy requirements (use production requirements without torch/transformers)
+# Copy requirements
 COPY requirements-prod.txt requirements.txt .
 
 # Install Python dependencies
-# Install CPU-only torch first (much smaller: ~200MB vs ~2GB+ for CUDA version)
-# This prevents sentence-transformers from pulling in the full CUDA torch
-RUN pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu torch==2.1.1 && \
+# Install CPU-only torch first, then other dependencies
+RUN pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu torch==2.1.2 && \
+    pip install --no-cache-dir transformers==4.36.2 huggingface-hub==0.20.3 sentence-transformers==2.3.1 && \
     pip install --no-cache-dir -r requirements-prod.txt && \
     pip cache purge || true
 

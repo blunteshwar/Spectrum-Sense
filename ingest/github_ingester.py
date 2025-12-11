@@ -24,17 +24,47 @@ class GitHubIngester:
     SKIP_DIRS = {
         "node_modules", ".git", "dist", "build", "coverage",
         "__pycache__", ".next", ".nuxt", "vendor", ".cache",
-        "test-results", "playwright-report"
+        "test-results", "playwright-report",
+        # Test directories
+        "test", "tests", "__tests__", "spec", "specs",
+        # Story/example directories
+        "stories", "__stories__", "storybook", "examples",
+        # Benchmark/fixture directories
+        "benchmarks", "fixtures", "__fixtures__", "mocks", "__mocks__",
+        # Other non-essential directories
+        "scripts", "tools", ".storybook", ".husky", ".github"
+    }
+    
+    # File patterns to skip (case-insensitive matching)
+    SKIP_FILE_PATTERNS = {
+        ".test.", ".spec.", ".stories.", ".story.",
+        "-test.", "-spec.", "_test.", "_spec.",
+        ".d.ts",  # TypeScript declaration files
+        ".min.", ".bundle.",  # Minified/bundled files
+        "changelog",  # Changelog files
+    }
+    
+    # Exact filenames to skip (case-insensitive)
+    SKIP_FILENAMES = {
+        "changelog.md", "changelog.txt", "changelog",
+        "changes.md", "history.md", "releases.md",
+        "license", "license.md", "license.txt",
+        "contributing.md", "code_of_conduct.md",
+        "security.md", "authors.md", "contributors.md",
     }
 
     def __init__(
         self,
         extensions: Optional[Set[str]] = None,
         skip_dirs: Optional[Set[str]] = None,
+        skip_file_patterns: Optional[Set[str]] = None,
+        skip_filenames: Optional[Set[str]] = None,
         clone_dir: str = "./repos"
     ):
         self.extensions = extensions or self.DEFAULT_EXTENSIONS
         self.skip_dirs = skip_dirs or self.SKIP_DIRS
+        self.skip_file_patterns = skip_file_patterns or self.SKIP_FILE_PATTERNS
+        self.skip_filenames = skip_filenames or self.SKIP_FILENAMES
         self.clone_dir = Path(clone_dir)
         self.clone_dir.mkdir(parents=True, exist_ok=True)
 
@@ -85,12 +115,25 @@ class GitHubIngester:
 
         # Check if in skip directory
         for part in file_path.parts:
-            if part in self.skip_dirs:
+            if part.lower() in {d.lower() for d in self.skip_dirs}:
                 return False
 
-        # Skip test files (optional - can be configurable)
-        # if "test" in file_path.stem.lower() or "spec" in file_path.stem.lower():
-        #     return False
+        # Skip exact filenames (changelog, license, etc.)
+        file_name_lower = file_path.name.lower()
+        if file_name_lower in self.skip_filenames:
+            return False
+
+        # Skip files matching skip patterns (test files, stories, etc.)
+        for pattern in self.skip_file_patterns:
+            if pattern in file_name_lower:
+                return False
+        
+        # Skip files that start with test or end with test before extension
+        stem_lower = file_path.stem.lower()
+        if stem_lower.startswith("test") or stem_lower.endswith("test"):
+            return False
+        if stem_lower.startswith("spec") or stem_lower.endswith("spec"):
+            return False
 
         return True
 

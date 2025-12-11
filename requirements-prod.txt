@@ -10,17 +10,13 @@ lxml==4.9.3
 requests==2.31.0
 
 # Text processing
-# Note: sentence-transformers requires torch, but we use CPU-only version
+# Note: torch, transformers, sentence-transformers are installed in Dockerfile
+# to ensure version compatibility with CPU-only torch
 rank-bm25==0.2.2
-huggingface-hub>=0.20.0,<1.0.0
 numpy<2.0.0
-sentence-transformers==2.7.0
 
 # Vector DB
 qdrant-client>=1.9.0
-
-# Note: torch and transformers are NOT needed for production
-# since we use Ollama for LLM inference
 
 # Utilities
 python-dotenv==1.0.0
