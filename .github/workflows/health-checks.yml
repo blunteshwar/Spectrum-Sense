@@ -1,0 +1,180 @@
+name: Health Checks and Integration Tests
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+  workflow_dispatch:  # Allow manual triggering
+
+jobs:
+  health-checks:
+    name: Health Checks and Integration Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Free up disk space
+        run: |
+          echo "=== Current disk usage ==="
+          df -h
+          echo ""
+          echo "=== Cleaning up disk space ==="
+          # Remove unnecessary tools to free up space
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+          # Clean Docker to free up space
+          docker system prune -af --volumes || true
+          # Remove old Docker images
+          docker image prune -af || true
+          echo ""
+          echo "=== Disk usage after cleanup ==="
+          df -h
+          echo ""
+          echo "=== Available disk space ==="
+          df -h / | tail -1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install Python dependencies (for tests only)
+        run: |
+          python -m pip install --upgrade pip
+          # Only install test dependencies, not torch/transformers
+          pip install pytest==7.4.3 pytest-asyncio==0.21.1 pytest-cov==4.1.0 httpx
+
+      - name: Verify Docker Compose
+        run: |
+          docker compose version
+          docker version
+
+      - name: Build API image with production requirements
+        run: |
+          echo "=== Disk space before build ==="
+          df -h
+          echo ""
+          cd deploy
+          # Build with production requirements (CPU-only torch, no transformers)
+          # Use BuildKit for better caching and smaller images
+          echo "Starting Docker build..."
+          DOCKER_BUILDKIT=1 docker compose build --progress=plain api
+          echo ""
+          echo "=== Disk space after build ==="
+          df -h
+          echo ""
+          echo "=== Built images ==="
+          docker images | grep -E "(spectrum|REPOSITORY)" || docker images
+
+      - name: Start Docker Compose services
+        run: |
+          cd deploy
+          docker compose up -d
+          echo "Waiting for services to start..."
+          sleep 10  # Give services initial time to start
+
+      - name: Wait for Qdrant to be healthy
+        run: |
+          echo "Waiting for Qdrant..."
+          for i in {1..60}; do
+            if curl -f -s http://localhost:6333/health > /dev/null 2>&1; then
+              echo "Qdrant is healthy"
+              exit 0
+            fi
+            echo "Attempt $i/60: Qdrant not ready yet..."
+            sleep 2
+          done
+          echo "Qdrant failed to become healthy"
+          exit 1
+
+      - name: Wait for Ollama to be healthy
+        run: |
+          echo "Waiting for Ollama..."
+          for i in {1..60}; do
+            if curl -f -s http://localhost:11434/api/tags > /dev/null 2>&1; then
+              echo "Ollama is healthy"
+              exit 0
+            fi
+            echo "Attempt $i/60: Ollama not ready yet..."
+            sleep 2
+          done
+          echo "Ollama failed to become healthy"
+          exit 1
+
+      - name: Pull Ollama model
+        run: |
+          echo "Pulling Ollama model (this may take a few minutes)..."
+          docker exec spectrum-ollama ollama pull mistral:7b
+          echo "Model pulled successfully"
+
+      - name: Wait for API to be healthy
+        run: |
+          echo "Waiting for API..."
+          for i in {1..60}; do
+            if curl -f -s http://localhost:8000/health > /dev/null 2>&1; then
+              echo "API is healthy"
+              exit 0
+            fi
+            echo "Attempt $i/60: API not ready yet..."
+            sleep 5
+          done
+          echo "API failed to become healthy"
+          docker logs spectrum-api --tail 50 || true
+          exit 1
+
+      - name: Verify all services are running
+        run: |
+          echo "=== Service Status ==="
+          docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+          echo ""
+          echo "=== Qdrant Health ==="
+          curl -s http://localhost:6333/health || echo "Failed to get Qdrant health"
+          echo ""
+          echo "=== Ollama Models ==="
+          curl -s http://localhost:11434/api/tags || echo "Failed to get Ollama models"
+          echo ""
+          echo "=== API Health ==="
+          curl -s http://localhost:8000/health || echo "Failed to get API health"
+
+      - name: Index sample data (optional, for better test coverage)
+        run: |
+          echo "Indexing sample data..."
+          ./scripts/reset_local_db.sh || echo "Sample data indexing failed, continuing..."
+        continue-on-error: true
+
+      - name: Run health check tests
+        env:
+          API_BASE_URL: http://localhost:8000
+          QDRANT_URL: http://localhost:6333
+          OLLAMA_URL: http://localhost:11434
+          OLLAMA_MODEL: mistral:7b
+        run: |
+          echo "Running health check and integration tests..."
+          pytest tests/test_health_integration.py -v -m "not slow" --tb=short
+
+      - name: Check service logs on failure
+        if: failure()
+        run: |
+          echo "=== Qdrant logs ==="
+          docker logs spectrum-qdrant --tail 50 || true
+          echo ""
+          echo "=== Ollama logs ==="
+          docker logs spectrum-ollama --tail 50 || true
+          echo ""
+          echo "=== API logs ==="
+          docker logs spectrum-api --tail 100 || true
+
+      - name: Cleanup
+        if: always()
+        run: |
+          cd deploy
+          docker compose down -v
+

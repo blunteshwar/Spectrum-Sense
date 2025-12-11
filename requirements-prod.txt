@@ -1,0 +1,27 @@
+# Core dependencies
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+pydantic==2.5.0
+httpx==0.25.2
+
+# Web scraping and parsing
+beautifulsoup4==4.12.2
+lxml==4.9.3
+requests==2.31.0
+
+# Text processing
+# Note: torch, transformers, sentence-transformers are installed in Dockerfile
+# to ensure version compatibility with CPU-only torch
+rank-bm25==0.2.2
+numpy<2.0.0
+
+# Vector DB
+qdrant-client>=1.9.0
+
+# Utilities
+python-dotenv==1.0.0
+tqdm==4.66.1
+
+# Logging
+structlog==23.2.0
+

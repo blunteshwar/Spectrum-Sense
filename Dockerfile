@@ -6,13 +6,20 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y \
     gcc \
     g++ \
-    && rm -rf /var/lib/apt/lists/*
+    curl \
+    git \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
 
 # Copy requirements
-COPY requirements.txt .
+COPY requirements-prod.txt requirements.txt .
 
 # Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+# Install CPU-only torch first, then other dependencies
+RUN pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu torch==2.1.2 && \
+    pip install --no-cache-dir transformers==4.36.2 huggingface-hub==0.20.3 sentence-transformers==2.3.1 && \
+    pip install --no-cache-dir -r requirements-prod.txt && \
+    pip cache purge || true
 
 # Copy application code
 COPY . .

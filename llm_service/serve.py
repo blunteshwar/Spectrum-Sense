@@ -8,14 +8,23 @@ import structlog
 logger = structlog.get_logger(__name__)
 
 # System prompt template
-SYSTEM_PROMPT_TEMPLATE = """You are SpectrumGPT — an assistant restricted to answering only from the provided retrieved passages.
+SYSTEM_PROMPT_TEMPLATE = """You are SpectrumGPT — an expert assistant for Adobe Spectrum Web Components.
 
-Rules:
-1. Use only the retrieved passages for Spectrum-specific facts. If the answer isn't present, say "I couldn't find an authoritative answer in the indexed Spectrum docs or Slack corpus."
-2. Cite every factual claim with the snippet source in brackets: [title — heading — url].
-3. Preserve code blocks and include them verbatim with citations.
-4. At the end include a "Sources" section listing used snippets.
-5. Do not hallucinate versions, commits, or private user data.
+Your task is to provide comprehensive, detailed answers with code examples.
+
+Guidelines:
+1. Use ONLY the retrieved passages for facts. If the answer isn't present, say "I couldn't find an authoritative answer in the indexed Spectrum docs or Slack corpus."
+2. Provide DETAILED explanations — don't just summarize, explain HOW and WHY things work.
+3. ALWAYS include code examples when discussing components, APIs, or usage patterns. Extract code from the retrieved passages.
+4. Format code examples with proper markdown code blocks (```html, ```javascript, ```typescript).
+5. Explain what each code example does and how to use it.
+6. Structure your answer with clear sections when appropriate:
+   - **Overview**: Brief explanation of the component/concept
+   - **Usage**: How to use it with code examples
+   - **Properties/Attributes**: Key options and their effects (if applicable)
+   - **Examples**: Multiple code examples showing different use cases
+7. Cite sources using [title — url] format at the end.
+8. Do not hallucinate versions, commits, or private user data.
 
 Retrieved passages:
 {context}
@@ -25,7 +34,7 @@ Retrieved passages:
 class PromptComposer:
     """Composes prompts for LLM with context and token budget management."""
 
-    def __init__(self, max_context_tokens: int = 3000):
+    def __init__(self, max_context_tokens: int = 4000):
         self.max_context_tokens = max_context_tokens
         # Rough estimate: 1 token ≈ 4 characters
         self.chars_per_token = 4
@@ -79,8 +88,8 @@ class LLMService:
         self,
         service_url: str,
         model_name: str = "mistral-7b-instruct",
-        temperature: float = 0.0,
-        max_tokens: int = 1024
+        temperature: float = 0.1,
+        max_tokens: int = 2048
     ):
         self.service_url = service_url
         self.model_name = model_name
@@ -105,14 +114,24 @@ class LLMService:
         temp = temperature if temperature is not None else self.temperature
         max_toks = max_tokens if max_tokens is not None else self.max_tokens
 
-        # Try different API formats
+        # Try different API formats (prioritize chat format for Ollama)
         try:
-            # Format 1: OpenAI-compatible
+            # Format 1: Chat format (preferred for Ollama)
+            # Split prompt into system and user messages
+            prompt_parts = prompt.split("User question:")
+            system_content = prompt_parts[0].strip() if len(prompt_parts) > 1 else ""
+            user_content = prompt_parts[-1].strip() if prompt_parts else prompt
+            
+            messages = []
+            if system_content:
+                messages.append({"role": "system", "content": system_content})
+            messages.append({"role": "user", "content": user_content})
+            
             response = self.client.post(
-                f"{self.service_url}/v1/completions",
+                f"{self.service_url}/v1/chat/completions",
                 json={
                     "model": self.model_name,
-                    "prompt": prompt,
+                    "messages": messages,
                     "temperature": temp,
                     "max_tokens": max_toks,
                     "stop": ["Sources:", "\n\nSources:"]
@@ -120,27 +139,25 @@ class LLMService:
             )
             response.raise_for_status()
             result = response.json()
-            return result.get("choices", [{}])[0].get("text", "").strip()
+            return result.get("choices", [{}])[0].get("message", {}).get("content", "").strip()
 
         except Exception as e1:
-            logger.warning("OpenAI format failed, trying chat format", error=str(e1))
+            logger.warning("Chat format failed, trying completions format", error=str(e1))
             try:
-                # Format 2: Chat format
+                # Format 2: OpenAI-compatible completions
                 response = self.client.post(
-                    f"{self.service_url}/v1/chat/completions",
+                    f"{self.service_url}/v1/completions",
                     json={
                         "model": self.model_name,
-                        "messages": [
-                            {"role": "system", "content": prompt.split("User question:")[0]},
-                            {"role": "user", "content": prompt.split("User question:")[-1]}
-                        ],
+                        "prompt": prompt,
                         "temperature": temp,
-                        "max_tokens": max_toks
+                        "max_tokens": max_toks,
+                        "stop": ["Sources:", "\n\nSources:"]
                     }
                 )
                 response.raise_for_status()
                 result = response.json()
-                return result.get("choices", [{}])[0].get("message", {}).get("content", "").strip()
+                return result.get("choices", [{}])[0].get("text", "").strip()
 
             except Exception as e2:
                 logger.error("Both API formats failed", error1=str(e1), error2=str(e2))
@@ -186,6 +203,7 @@ Note: This is a mock response. Configure a real LLM service for production use."
 
 def create_llm_service(
     service_url: Optional[str] = None,
+    model_name: str = "mistral:7b",
     use_mock: bool = False
 ):
     """Factory function to create LLM service."""
@@ -193,5 +211,5 @@ def create_llm_service(
         logger.info("Using mock LLM service")
         return MockLLMService()
 
-    return LLMService(service_url=service_url)
+    return LLMService(service_url=service_url, model_name=model_name)
 
