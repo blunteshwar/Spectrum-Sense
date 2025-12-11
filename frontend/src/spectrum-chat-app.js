@@ -337,65 +337,63 @@ class SpectrumChatApp extends LitElement {
 
     render() {
         return html`
-            <sp-theme scale="medium" color="light">
-                <div class="app-header">
-                    <div class="header-left">
-                        <div class="logo">✨</div>
-                        <div>
-                            <div class="app-title">SpectrumGPT</div>
-                            <div class="app-subtitle">Adobe Spectrum Documentation Assistant</div>
-                        </div>
+            <div class="app-header">
+                <div class="header-left">
+                    <div class="logo">✨</div>
+                    <div>
+                        <div class="app-title">SpectrumGPT</div>
+                        <div class="app-subtitle">Adobe Spectrum Documentation Assistant</div>
                     </div>
-                    <div class="header-actions">
-                        <sp-action-button quiet @click=${this._clearChat}>
-                            Clear Chat
-                        </sp-action-button>
+                </div>
+                <div class="header-actions">
+                    <sp-action-button quiet @click=${this._clearChat}>
+                        Clear Chat
+                    </sp-action-button>
+                </div>
+            </div>
+
+            <div class="main-content">
+                <div class="chat-container">
+                    <div class="messages-container" id="messages">
+                        ${this.messages.length === 0 ? this._renderWelcome() : this._renderMessages()}
+                        ${this.isLoading ? this._renderLoading() : ''}
+                    </div>
+
+                    <div class="input-container">
+                        <div class="input-wrapper">
+                            <input
+                                type="text"
+                                class="input-field"
+                                placeholder="Ask about Spectrum components, usage, or best practices..."
+                                .value=${this.inputValue}
+                                @input=${this._handleInput}
+                                @keydown=${this._handleKeydown}
+                                ?disabled=${this.isLoading}
+                            />
+                            <button
+                                class="send-button"
+                                @click=${this._sendMessage}
+                                ?disabled=${!this.inputValue.trim() || this.isLoading}
+                            >
+                                <svg viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+                                </svg>
+                            </button>
+                        </div>
                     </div>
                 </div>
 
-                <div class="main-content">
-                    <div class="chat-container">
-                        <div class="messages-container" id="messages">
-                            ${this.messages.length === 0 ? this._renderWelcome() : this._renderMessages()}
-                            ${this.isLoading ? this._renderLoading() : ''}
-                        </div>
-
-                        <div class="input-container">
-                            <div class="input-wrapper">
-                                <input
-                                    type="text"
-                                    class="input-field"
-                                    placeholder="Ask about Spectrum components, usage, or best practices..."
-                                    .value=${this.inputValue}
-                                    @input=${this._handleInput}
-                                    @keydown=${this._handleKeydown}
-                                    ?disabled=${this.isLoading}
-                                />
-                                <button
-                                    class="send-button"
-                                    @click=${this._sendMessage}
-                                    ?disabled=${!this.inputValue.trim() || this.isLoading}
-                                >
-                                    <svg viewBox="0 0 24 24" fill="currentColor">
-                                        <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
-                                    </svg>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-
-                    ${this.showSources ? html`
-                        <sources-panel
-                            .sources=${this.selectedSources}
-                            @close=${() => this.showSources = false}
-                        ></sources-panel>
-                    ` : ''}
-                </div>
-
-                ${this.error ? html`
-                    <div class="error-toast">${this.error}</div>
+                ${this.showSources ? html`
+                    <sources-panel
+                        .sources=${this.selectedSources}
+                        @close=${() => this.showSources = false}
+                    ></sources-panel>
                 ` : ''}
-            </sp-theme>
+            </div>
+
+            ${this.error ? html`
+                <div class="error-toast">${this.error}</div>
+            ` : ''}
         `;
     }
 

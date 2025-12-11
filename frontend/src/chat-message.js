@@ -1,6 +1,41 @@
 import { LitElement, html, css } from 'lit';
 import { unsafeHTML } from 'lit/directives/unsafe-html.js';
 
+// Import Spectrum components for live preview rendering
+import '@spectrum-web-components/theme/sp-theme.js';
+import '@spectrum-web-components/theme/src/themes.js';
+import '@spectrum-web-components/button/sp-button.js';
+import '@spectrum-web-components/action-button/sp-action-button.js';
+import '@spectrum-web-components/textfield/sp-textfield.js';
+import '@spectrum-web-components/checkbox/sp-checkbox.js';
+import '@spectrum-web-components/switch/sp-switch.js';
+import '@spectrum-web-components/radio/sp-radio.js';
+import '@spectrum-web-components/radio/sp-radio-group.js';
+import '@spectrum-web-components/slider/sp-slider.js';
+import '@spectrum-web-components/picker/sp-picker.js';
+import '@spectrum-web-components/menu/sp-menu.js';
+import '@spectrum-web-components/menu/sp-menu-item.js';
+import '@spectrum-web-components/dialog/sp-dialog.js';
+import '@spectrum-web-components/popover/sp-popover.js';
+import '@spectrum-web-components/tooltip/sp-tooltip.js';
+import '@spectrum-web-components/card/sp-card.js';
+import '@spectrum-web-components/divider/sp-divider.js';
+import '@spectrum-web-components/progress-circle/sp-progress-circle.js';
+import '@spectrum-web-components/progress-bar/sp-progress-bar.js';
+import '@spectrum-web-components/link/sp-link.js';
+import '@spectrum-web-components/icon/sp-icon.js';
+import '@spectrum-web-components/icons-workflow/icons/sp-icon-checkmark.js';
+import '@spectrum-web-components/badge/sp-badge.js';
+import '@spectrum-web-components/avatar/sp-avatar.js';
+import '@spectrum-web-components/tags/sp-tag.js';
+import '@spectrum-web-components/tags/sp-tags.js';
+import '@spectrum-web-components/toast/sp-toast.js';
+import '@spectrum-web-components/tabs/sp-tabs.js';
+import '@spectrum-web-components/tabs/sp-tab.js';
+import '@spectrum-web-components/tabs/sp-tab-panel.js';
+import '@spectrum-web-components/accordion/sp-accordion.js';
+import '@spectrum-web-components/accordion/sp-accordion-item.js';
+
 class ChatMessage extends LitElement {
     static properties = {
         message: { type: Object },
@@ -119,11 +154,14 @@ class ChatMessage extends LitElement {
         }
 
         .message-text pre code {
-            background: transparent;
-            padding: 0;
-            color: #cdd6f4;
+            background: transparent !important;
+            padding: 0 !important;
+            color: #cdd6f4 !important;
             white-space: pre;
             display: block;
+            border: none !important;
+            font-size: 13px;
+            line-height: 1.5;
         }
 
         /* Syntax highlighting colors */
@@ -136,19 +174,72 @@ class ChatMessage extends LitElement {
         .code-block-wrapper {
             position: relative;
             margin: 12px 0;
+            border-radius: 8px;
+            border: 1px solid #e0e0e0;
+            overflow: hidden;
+        }
+
+        .code-block-wrapper pre {
+            margin: 0;
+            border: none;
+            border-radius: 0;
+        }
+
+        .component-preview {
+            padding: 24px;
+            background: #fafafa;
+            border-bottom: 1px solid #e0e0e0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 80px;
+        }
+
+        .component-preview sp-theme {
+            display: contents;
+        }
+
+        .code-section {
+            position: relative;
+            background: #1e1e2e;
+        }
+
+        .code-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 12px;
+            background: #313244;
+            border-bottom: 1px solid #45475a;
         }
 
         .code-lang-label {
-            position: absolute;
-            top: 0;
-            right: 0;
-            background: #45475a;
+            background: transparent;
             color: #bac2de;
-            padding: 4px 10px;
             font-size: 11px;
-            border-radius: 0 8px 0 6px;
             font-family: 'SF Mono', Monaco, monospace;
             text-transform: uppercase;
+        }
+
+        .code-header-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .copy-code-btn {
+            background: #45475a;
+            border: none;
+            color: #bac2de;
+            padding: 4px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 11px;
+            transition: all 0.2s ease;
+        }
+
+        .copy-code-btn:hover {
+            background: #585b70;
+            color: #cdd6f4;
         }
 
         .copy-code-button {
@@ -389,26 +480,83 @@ class ChatMessage extends LitElement {
     _formatContent(content) {
         if (!content) return '';
 
-        // First, extract and protect code blocks
+        // First, extract and protect code blocks (before escaping HTML)
         const codeBlocks = [];
         let processed = content.replace(/```(\w*)\n?([\s\S]*?)```/g, (match, lang, code) => {
             const index = codeBlocks.length;
-            const escapedCode = this._escapeHtml(code.trim());
-            const langLabel = lang ? `<span class="code-lang-label">${lang}</span>` : '';
-            codeBlocks.push(`<div class="code-block-wrapper">${langLabel}<pre><code>${escapedCode}</code></pre></div>`);
+            const trimmedCode = code.trim();
+            const escapedCode = this._escapeHtml(trimmedCode);
+            const langLabel = lang || 'code';
+            
+            // Check if this code contains Spectrum components for live preview
+            const hasSpectrumComponents = /<sp-[\w-]+/.test(trimmedCode);
+            
+            let blockHtml;
+            if (hasSpectrumComponents) {
+                // Wrap preview in sp-theme for proper styling, render the actual component
+                const previewHtml = `
+                    <div class="component-preview">
+                        <sp-theme theme="spectrum" color="light" scale="medium">
+                            ${trimmedCode}
+                        </sp-theme>
+                    </div>
+                `;
+                blockHtml = `
+                    <div class="code-block-wrapper">
+                        ${previewHtml}
+                        <div class="code-section">
+                            <div class="code-header">
+                                <span class="code-lang-label">${langLabel}</span>
+                            </div>
+                            <pre><code>${escapedCode}</code></pre>
+                        </div>
+                    </div>
+                `;
+            } else {
+                // Regular code block without preview
+                blockHtml = `
+                    <div class="code-block-wrapper">
+                        <div class="code-section">
+                            <div class="code-header">
+                                <span class="code-lang-label">${langLabel}</span>
+                            </div>
+                            <pre><code>${escapedCode}</code></pre>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            codeBlocks.push(blockHtml);
             return `__CODE_BLOCK_${index}__`;
         });
 
-        // Apply other formatting
+        // Extract inline code before escaping
+        const inlineCodes = [];
+        processed = processed.replace(/`([^`]+)`/g, (match, code) => {
+            const index = inlineCodes.length;
+            inlineCodes.push(`<code>${this._escapeHtml(code)}</code>`);
+            return `__INLINE_CODE_${index}__`;
+        });
+
+        // Now escape ALL remaining HTML to prevent XSS and unwanted rendering
+        processed = this._escapeHtml(processed);
+
+        // Restore inline code placeholders
+        inlineCodes.forEach((code, index) => {
+            processed = processed.replace(`__INLINE_CODE_${index}__`, code);
+        });
+
+        // Apply markdown formatting (on escaped content)
         processed = processed
-            // Inline code (escape HTML inside)
-            .replace(/`([^`]+)`/g, (match, code) => `<code>${this._escapeHtml(code)}</code>`)
             // Bold
             .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
             // Italic
             .replace(/\*([^*]+)\*/g, '<em>$1</em>')
-            // Links
-            .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')
+            // Links - need to unescape the URL
+            .replace(/\[([^\]]+)\]\(([^)]+)\)/g, (match, text, url) => {
+                const unescapedUrl = url.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+                return `<a href="${unescapedUrl}" target="_blank" rel="noopener">${text}</a>`;
+            })
             // Bullet lists
             .replace(/^[\s]*[-*]\s+(.+)$/gm, '<li>$1</li>')
             // Numbered lists
@@ -441,9 +589,13 @@ class ChatMessage extends LitElement {
     }
 
     _escapeHtml(text) {
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
+        if (!text) return '';
+        return text
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
     }
 
     _truncate(text, maxLength) {
