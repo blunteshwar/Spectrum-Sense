@@ -1,41 +1,6 @@
 import { LitElement, html, css } from 'lit';
 import { unsafeHTML } from 'lit/directives/unsafe-html.js';
 
-// Import Spectrum components for live preview rendering
-import '@spectrum-web-components/theme/sp-theme.js';
-import '@spectrum-web-components/theme/src/themes.js';
-import '@spectrum-web-components/button/sp-button.js';
-import '@spectrum-web-components/action-button/sp-action-button.js';
-import '@spectrum-web-components/textfield/sp-textfield.js';
-import '@spectrum-web-components/checkbox/sp-checkbox.js';
-import '@spectrum-web-components/switch/sp-switch.js';
-import '@spectrum-web-components/radio/sp-radio.js';
-import '@spectrum-web-components/radio/sp-radio-group.js';
-import '@spectrum-web-components/slider/sp-slider.js';
-import '@spectrum-web-components/picker/sp-picker.js';
-import '@spectrum-web-components/menu/sp-menu.js';
-import '@spectrum-web-components/menu/sp-menu-item.js';
-import '@spectrum-web-components/dialog/sp-dialog.js';
-import '@spectrum-web-components/popover/sp-popover.js';
-import '@spectrum-web-components/tooltip/sp-tooltip.js';
-import '@spectrum-web-components/card/sp-card.js';
-import '@spectrum-web-components/divider/sp-divider.js';
-import '@spectrum-web-components/progress-circle/sp-progress-circle.js';
-import '@spectrum-web-components/progress-bar/sp-progress-bar.js';
-import '@spectrum-web-components/link/sp-link.js';
-import '@spectrum-web-components/icon/sp-icon.js';
-import '@spectrum-web-components/icons-workflow/icons/sp-icon-checkmark.js';
-import '@spectrum-web-components/badge/sp-badge.js';
-import '@spectrum-web-components/avatar/sp-avatar.js';
-import '@spectrum-web-components/tags/sp-tag.js';
-import '@spectrum-web-components/tags/sp-tags.js';
-import '@spectrum-web-components/toast/sp-toast.js';
-import '@spectrum-web-components/tabs/sp-tabs.js';
-import '@spectrum-web-components/tabs/sp-tab.js';
-import '@spectrum-web-components/tabs/sp-tab-panel.js';
-import '@spectrum-web-components/accordion/sp-accordion.js';
-import '@spectrum-web-components/accordion/sp-accordion-item.js';
-
 class ChatMessage extends LitElement {
     static properties = {
         message: { type: Object },
@@ -183,20 +148,6 @@ class ChatMessage extends LitElement {
             margin: 0;
             border: none;
             border-radius: 0;
-        }
-
-        .component-preview {
-            padding: 24px;
-            background: #fafafa;
-            border-bottom: 1px solid #e0e0e0;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            min-height: 80px;
-        }
-
-        .component-preview sp-theme {
-            display: contents;
         }
 
         .code-section {
@@ -486,45 +437,20 @@ class ChatMessage extends LitElement {
             const index = codeBlocks.length;
             const trimmedCode = code.trim();
             const escapedCode = this._escapeHtml(trimmedCode);
-            const langLabel = lang || 'code';
+            // Sanitize language label to prevent XSS via malicious language identifiers
+            const langLabel = this._escapeHtml(lang || 'code');
             
-            // Check if this code contains Spectrum components for live preview
-            const hasSpectrumComponents = /<sp-[\w-]+/.test(trimmedCode);
-            
-            let blockHtml;
-            if (hasSpectrumComponents) {
-                // Wrap preview in sp-theme for proper styling, render the actual component
-                const previewHtml = `
-                    <div class="component-preview">
-                        <sp-theme theme="spectrum" color="light" scale="medium">
-                            ${trimmedCode}
-                        </sp-theme>
-                    </div>
-                `;
-                blockHtml = `
-                    <div class="code-block-wrapper">
-                        ${previewHtml}
-                        <div class="code-section">
-                            <div class="code-header">
-                                <span class="code-lang-label">${langLabel}</span>
-                            </div>
-                            <pre><code>${escapedCode}</code></pre>
+            // Render code block (code only, no preview)
+            const blockHtml = `
+                <div class="code-block-wrapper">
+                    <div class="code-section">
+                        <div class="code-header">
+                            <span class="code-lang-label">${langLabel}</span>
                         </div>
+                        <pre><code>${escapedCode}</code></pre>
                     </div>
-                `;
-            } else {
-                // Regular code block without preview
-                blockHtml = `
-                    <div class="code-block-wrapper">
-                        <div class="code-section">
-                            <div class="code-header">
-                                <span class="code-lang-label">${langLabel}</span>
-                            </div>
-                            <pre><code>${escapedCode}</code></pre>
-                        </div>
-                    </div>
-                `;
-            }
+                </div>
+            `;
             
             codeBlocks.push(blockHtml);
             return `__CODE_BLOCK_${index}__`;
@@ -552,10 +478,15 @@ class ChatMessage extends LitElement {
             .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
             // Italic
             .replace(/\*([^*]+)\*/g, '<em>$1</em>')
-            // Links - need to unescape the URL
+            // Links - sanitize URL to prevent XSS via javascript: protocol
             .replace(/\[([^\]]+)\]\(([^)]+)\)/g, (match, text, url) => {
                 const unescapedUrl = url.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
-                return `<a href="${unescapedUrl}" target="_blank" rel="noopener">${text}</a>`;
+                const sanitizedUrl = this._sanitizeUrl(unescapedUrl);
+                if (!sanitizedUrl) {
+                    // Unsafe URL - render as plain text
+                    return text;
+                }
+                return `<a href="${sanitizedUrl}" target="_blank" rel="noopener">${text}</a>`;
             })
             // Bullet lists
             .replace(/^[\s]*[-*]\s+(.+)$/gm, '<li>$1</li>')
@@ -596,6 +527,41 @@ class ChatMessage extends LitElement {
             .replace(/>/g, '&gt;')
             .replace(/"/g, '&quot;')
             .replace(/'/g, '&#039;');
+    }
+
+    _sanitizeUrl(url) {
+        if (!url) return null;
+        
+        // Trim and normalize
+        const trimmed = url.trim().toLowerCase();
+        
+        // Block dangerous protocols
+        const dangerousProtocols = [
+            'javascript:',
+            'vbscript:',
+            'data:',
+            'file:',
+        ];
+        
+        for (const protocol of dangerousProtocols) {
+            if (trimmed.startsWith(protocol)) {
+                return null;
+            }
+        }
+        
+        // Allow only safe protocols or relative URLs
+        const safeProtocols = ['http://', 'https://', 'mailto:', 'tel:', '#', '/'];
+        const hasProtocol = /^[a-z][a-z0-9+.-]*:/i.test(url.trim());
+        
+        if (hasProtocol) {
+            const isSafe = safeProtocols.some(p => trimmed.startsWith(p));
+            if (!isSafe) {
+                return null;
+            }
+        }
+        
+        // Return original URL (not lowercased) if safe
+        return url.trim();
     }
 
     _truncate(text, maxLength) {
