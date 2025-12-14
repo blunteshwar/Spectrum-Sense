@@ -96,12 +96,13 @@ class ChatMessage extends LitElement {
         .message-text pre {
             background: var(--spectrum-global-color-gray-900);
             color: var(--spectrum-global-color-gray-50);
-            padding: var(--spectrum-global-dimension-size-200);
+            padding: 10px 12px;
             border-radius: var(--spectrum-global-dimension-size-100);
             overflow-x: auto;
             margin: var(--spectrum-global-dimension-size-150) 0;
             font-family: var(--spectrum-global-font-family-code);
             font-size: var(--spectrum-global-dimension-font-size-75);
+            line-height: 1.3;
         }
 
         .message-text pre code {
@@ -111,13 +112,13 @@ class ChatMessage extends LitElement {
         }
 
         .message-text ul, .message-text ol {
-            margin: var(--spectrum-global-dimension-size-100) 0;
-            padding-inline-start: var(--spectrum-global-dimension-size-300);
-            color: var(--spectrum-global-color-gray-800);
+            margin: 0;
+            padding-inline-start: 18px;
+            color: inherit;
         }
 
         .message-text li {
-            margin: var(--spectrum-global-dimension-size-50) 0;
+            margin: 0;
         }
 
         .message-text strong {
@@ -141,24 +142,49 @@ class ChatMessage extends LitElement {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            background: var(--spectrum-global-color-gray-800);
-            padding: var(--spectrum-global-dimension-size-75) var(--spectrum-global-dimension-size-150);
+            background: linear-gradient(
+                90deg,
+                rgba(0, 0, 0, 0.28),
+                rgba(0, 0, 0, 0.16)
+            );
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            padding: 8px 12px;
             border-radius: var(--spectrum-global-dimension-size-100) var(--spectrum-global-dimension-size-100) 0 0;
-            font-size: var(--spectrum-global-dimension-font-size-50);
-            color: var(--spectrum-global-color-gray-400);
+            font-size: 11px;
+            letter-spacing: 0.06em;
+            color: rgba(255, 255, 255, 0.72);
             text-transform: uppercase;
             font-family: var(--spectrum-global-font-family-code);
+            backdrop-filter: blur(6px);
         }
 
         .code-block-wrapper {
             margin: var(--spectrum-global-dimension-size-150) 0;
             border-radius: var(--spectrum-global-dimension-size-100);
             overflow: hidden;
+            border: 1px solid rgba(0, 0, 0, 0.08);
+            box-shadow: 0 10px 24px rgba(0, 0, 0, 0.12);
         }
 
         .code-block-wrapper pre {
             margin: 0;
             border-radius: 0 0 var(--spectrum-global-dimension-size-100) var(--spectrum-global-dimension-size-100);
+        }
+
+        /* “Editor-like” code surface */
+        .code-block-wrapper pre {
+            background: radial-gradient(
+                    1200px 600px at 0% 0%,
+                    rgba(110, 91, 222, 0.18),
+                    rgba(0, 0, 0, 0.0)
+                ),
+                radial-gradient(
+                    900px 500px at 100% 0%,
+                    rgba(13, 102, 208, 0.18),
+                    rgba(0, 0, 0, 0.0)
+                ),
+                #0b1020;
+            color: rgba(255, 255, 255, 0.92);
         }
 
         .actions-container {
