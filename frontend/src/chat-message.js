@@ -239,7 +239,7 @@ class ChatMessage extends LitElement {
                 <div class="message-row ${role}">
                     <div class="avatar-container">
                         ${role === 'assistant' 
-                            ? html`<sp-avatar label="Assistant" size="500" src="https://emoji.slack-edge.com/T23RE8G4F/erc_ai_2/469a58f789f70bc8.png"></sp-avatar>`
+                            ? html`<sp-avatar label="Assistant" size="500" src="https://emoji.slack-edge.com/T23RE8G4F/artificial_intelligence/4bbbcab27304ff8b.png"></sp-avatar>`
                             : html`<sp-avatar label="You" size="500" src="https://emoji.slack-edge.com/T23RE8G4F/ruben-eyes/88e46fe99c285a6f.gif" ></sp-avatar>`
                         }
                     </div>
