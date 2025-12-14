@@ -5,7 +5,7 @@ class ChatMessage extends LitElement {
     static properties = {
         message: { type: Object },
         copied: { type: Boolean },
-        themeColor: { type: String }
+        themeColor: { type: String, attribute: 'theme-color', reflect: true }
     };
 
     static styles = css`
@@ -185,6 +185,37 @@ class ChatMessage extends LitElement {
                 ),
                 #0b1020;
             color: rgba(255, 255, 255, 0.92);
+        }
+
+        /* Light theme: keep it “editor-like”, but brighter */
+        :host([theme-color="light"]) .code-block-header {
+            background: linear-gradient(
+                90deg,
+                rgba(0, 0, 0, 0.06),
+                rgba(0, 0, 0, 0.03)
+            );
+            border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+            color: rgba(0, 0, 0, 0.6);
+        }
+
+        :host([theme-color="light"]) .code-block-wrapper {
+            border: 1px solid rgba(0, 0, 0, 0.10);
+            box-shadow: 0 10px 22px rgba(0, 0, 0, 0.10);
+        }
+
+        :host([theme-color="light"]) .code-block-wrapper pre {
+            background: radial-gradient(
+                    1200px 600px at 0% 0%,
+                    rgba(110, 91, 222, 0.10),
+                    rgba(255, 255, 255, 0.0)
+                ),
+                radial-gradient(
+                    900px 500px at 100% 0%,
+                    rgba(13, 102, 208, 0.10),
+                    rgba(255, 255, 255, 0.0)
+                ),
+                #f6f7fb;
+            color: rgba(0, 0, 0, 0.88);
         }
 
         .actions-container {
