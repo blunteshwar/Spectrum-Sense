@@ -148,6 +148,18 @@ class SpectrumChatApp extends LitElement {
             border-radius: var(--spectrum-global-dimension-size-100);
         }
 
+        .loading-container sp-progress-circle {
+            display: block;
+        }
+
+        .loading-container sp-help-text {
+            display: flex;
+            align-items: center;
+            line-height: 1;
+            position: relative;
+            top: -1px;
+        }
+
         sources-panel {
             width: 380px;
             border-inline-start: 1px solid var(--spectrum-global-color-gray-300);
@@ -176,7 +188,7 @@ class SpectrumChatApp extends LitElement {
 
     render() {
         return html`
-            <sp-theme theme="spectrum" color="${this.themeColor}" scale="medium" style="display: block; height: 100%;">
+            <sp-theme theme="spectrum" color="${this.themeColor === 'dark' ? 'dark' : 'light'}" scale="medium" style="display: block; height: 100%;">
                 <div class="app-container">
                     <!-- Header -->
                     <header class="header">
