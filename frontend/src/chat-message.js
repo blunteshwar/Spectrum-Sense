@@ -27,28 +27,61 @@ class ChatMessage extends LitElement {
             flex-shrink: 0;
         }
 
-        .message-card {
+        .message-bubble {
+            display: inline-block;
+            width: auto;
             max-width: 75%;
+            padding: 6px 10px;
+            border-radius: 16px;
+            box-shadow: var(--spectrum-alias-elevation-low);
+            text-align: left;
         }
 
-        .message-content {
-            padding: var(--spectrum-global-dimension-size-200);
-            color: var(--spectrum-global-color-gray-900);
+        .message-row.assistant .message-bubble {
+            background: var(--spectrum-alias-background-color-secondary);
+            color: var(--spectrum-alias-text-color-primary);
+            border: 1px solid var(--spectrum-alias-border-color);
+            border-bottom-left-radius: 4px;
+        }
+
+        .message-row.user .message-bubble {
+            background: var(--spectrum-accent-color-700);
+            color: #fff;
+            border-bottom-right-radius: 4px;
+            text-align: center;
+        }
+
+        .message-row.user .message-bubble .message-text,
+        .message-row.user .message-bubble .message-text p,
+        .message-row.user .message-bubble .message-text strong {
+            color: inherit;
         }
 
         .message-text {
-            white-space: pre-wrap;
+            white-space: pre-line;
             word-break: break-word;
-            line-height: 1.6;
-            color: var(--spectrum-global-color-gray-800);
+            line-height: 1.2;
+            color: inherit;
+            margin: 0;
+            padding: 0;
+            display: inline-block;
+            text-align: left;
         }
 
         .message-text p {
-            margin: 0 0 var(--spectrum-global-dimension-size-150) 0;
+            margin: 0;
+            padding: 0;
+            display: inline;
         }
 
         .message-text p:last-child {
-            margin-block-end: 0;
+            margin: 0;
+            padding: 0;
+        }
+
+        .message-text > * {
+            margin: 0;
+            padding: 0;
         }
 
         .message-text code {
@@ -145,61 +178,51 @@ class ChatMessage extends LitElement {
         const { role, content, sources, latency, isError } = this.message;
 
         return html`
-            <sp-theme theme="spectrum" color="${this.themeColor}" scale="medium" style="display: block;">
+            <sp-theme theme="spectrum" color="${this.themeColor === 'dark' ? 'dark' : 'light'}" scale="medium" style="display: block;">
                 <div class="message-row ${role}">
                     <div class="avatar-container">
                         ${role === 'assistant' 
-                            ? html`<sp-avatar label="Assistant" size="s">
-                                <sp-icon-magic-wand slot="icon"></sp-icon-magic-wand>
-                              </sp-avatar>`
-                            : html`<sp-avatar label="You" size="s">
-                                <sp-icon-user slot="icon"></sp-icon-user>
-                              </sp-avatar>`
+                            ? html`<sp-avatar label="Assistant" size="500" src="https://emoji.slack-edge.com/T23RE8G4F/erc_ai_2/469a58f789f70bc8.png"></sp-avatar>`
+                            : html`<sp-avatar label="You" size="500" src="https://emoji.slack-edge.com/T23RE8G4F/ruben-eyes/88e46fe99c285a6f.gif" ></sp-avatar>`
                         }
                     </div>
 
-                    <sp-card class="message-card" variant="quiet">
-                        <div class="message-content">
-                            <div class="message-text">
-                                ${unsafeHTML(this._formatContent(content))}
+                    <div class="message-bubble">
+                        <div class="message-text">${unsafeHTML(this._formatContent(content))}</div>${role === 'assistant' && sources?.length > 0 ? html`
+                            <div class="message-footer">
+                                <sp-action-button quiet size="s" @click=${this._showSources}>
+                                    <sp-icon-document slot="icon"></sp-icon-document>
+                                    View Sources
+                                    <sp-badge size="s" variant="informative">${sources.length}</sp-badge>
+                                </sp-action-button>
+                                
+                                <div class="actions-container">
+                                    ${latency ? html`
+                                        <sp-help-text size="s">${latency}ms</sp-help-text>
+                                    ` : ''}
+                                    <sp-action-button 
+                                        quiet 
+                                        size="s" 
+                                        @click=${this._copyContent}
+                                        title="Copy"
+                                    >
+                                        ${this.copied 
+                                            ? html`<sp-icon-checkmark slot="icon"></sp-icon-checkmark>`
+                                            : html`<sp-icon-copy slot="icon"></sp-icon-copy>`
+                                        }
+                                    </sp-action-button>
+                                </div>
                             </div>
 
-                            ${role === 'assistant' && sources?.length > 0 ? html`
-                                <div class="message-footer">
-                                    <sp-action-button quiet size="s" @click=${this._showSources}>
-                                        <sp-icon-document slot="icon"></sp-icon-document>
-                                        View Sources
-                                        <sp-badge size="s" variant="informative">${sources.length}</sp-badge>
-                                    </sp-action-button>
-                                    
-                                    <div class="actions-container">
-                                        ${latency ? html`
-                                            <sp-help-text size="s">${latency}ms</sp-help-text>
-                                        ` : ''}
-                                        <sp-action-button 
-                                            quiet 
-                                            size="s" 
-                                            @click=${this._copyContent}
-                                            title="Copy"
-                                        >
-                                            ${this.copied 
-                                                ? html`<sp-icon-checkmark slot="icon"></sp-icon-checkmark>`
-                                                : html`<sp-icon-copy slot="icon"></sp-icon-copy>`
-                                            }
-                                        </sp-action-button>
-                                    </div>
-                                </div>
-
-                                <sp-tags class="source-tags" size="s">
-                                    ${sources.slice(0, 3).map(source => html`
-                                        <sp-tag href="${source.url}" target="_blank">
-                                            ${this._truncate(source.title, 30)}
-                                        </sp-tag>
-                                    `)}
-                                </sp-tags>
-                            ` : ''}
-                        </div>
-                    </sp-card>
+                            <sp-tags class="source-tags" size="s">
+                                ${sources.slice(0, 3).map(source => html`
+                                    <sp-tag href="${source.url}" target="_blank">
+                                        ${this._truncate(source.title, 30)}
+                                    </sp-tag>
+                                `)}
+                            </sp-tags>
+                        ` : ''}
+                    </div>
                 </div>
             </sp-theme>
         `;
