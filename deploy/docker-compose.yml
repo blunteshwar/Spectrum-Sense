@@ -76,8 +76,8 @@ services:
 
   frontend:
     build:
-      context: ../frontend
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: frontend/Dockerfile
     container_name: spectrum-frontend
     ports:
       - "3000:3000"
