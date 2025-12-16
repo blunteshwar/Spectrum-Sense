@@ -12,10 +12,11 @@ class RetrieverService:
 
     # Source-based boost factors for ranking
     # Higher values = higher priority in search results
+    # Note: Keep boosts modest to allow both docs and code to appear in results
     SOURCE_BOOST = {
-        "swc_docs": 1.3,   # 30% boost for documentation
-        "github": 1.0,      # No boost for code
-        "slack": 1.1,       # Slight boost for Slack discussions
+        "swc_docs": 1.1,   # 10% boost for documentation (was 1.3, reduced to allow code visibility)
+        "github": 1.05,      # No boost for code
+        "slack": 1.0,      # Slight boost for Slack discussions
     }
 
     def __init__(

@@ -87,7 +87,7 @@ The Spectrum RAG backend follows a modular pipeline architecture:
 
 ### System Prompt Structure
 ```
-You are SpectrumGPT — an assistant restricted to answering only from the provided retrieved passages.
+You are Spectrum Sense — an assistant restricted to answering only from the provided retrieved passages.
 
 Rules:
 1. Use only the retrieved passages for Spectrum-specific facts.

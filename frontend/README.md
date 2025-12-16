@@ -1,4 +1,4 @@
-# SpectrumGPT Frontend
+# Spectrum Sense Frontend
 
 A modern chat interface for the Spectrum RAG chatbot built with [Spectrum Web Components](https://opensource.adobe.com/spectrum-web-components/).
 
