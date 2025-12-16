@@ -41,14 +41,34 @@ Spectrum-Sense is an **internal RAG chatbot** that answers questions about Adobe
 
 ### Tech Stack
 
-| Component | Technology | Purpose |
-|-----------|------------|---------|
-| Backend API | FastAPI (Python) | REST API for queries and ingestion |
-| Vector Database | Qdrant | Stores embeddings for semantic search |
-| LLM Service | Ollama | Runs LLM locally (Mistral 7B) |
-| Embedding Model | sentence-transformers | Converts text to vectors |
-| Frontend | Spectrum Web Components | Chat UI |
-| Containerization | Docker Compose | Orchestrates all services |
+> **Key Design Principle**: All components are **100% open source** — no vendor lock-in, no licensing costs, full transparency.
+
+| Component | Technology | Why This Choice |
+|-----------|------------|-----------------|
+| Backend API | **FastAPI** (Python) | Open source, async-native, auto-generates OpenAPI docs, excellent for ML workloads |
+| Vector Database | **Qdrant** | Open source, written in Rust (fast), purpose-built for embeddings, rich filtering |
+| LLM Service | **Ollama** | Open source, runs LLMs locally, no API costs, supports many models (Mistral, Llama) |
+| Embedding Model | **sentence-transformers** | Open source, state-of-the-art embeddings, runs locally, no external API calls |
+| Frontend | **Spectrum Web Components** | Open source (Adobe), accessible by default, matches Adobe design language |
+| Web Components | **Lit** | Open source (Google), lightweight, framework-agnostic, native browser APIs |
+| Containerization | **Docker Compose** | Open source, reproducible environments, easy local development |
+
+**Why Open Source Matters:**
+
+1. **No Vendor Lock-in** — Switch any component without rewriting the system
+2. **Cost Control** — No per-token API fees; runs entirely on your infrastructure
+3. **Data Privacy** — All processing happens locally; no data sent to external services
+4. **Transparency** — Full visibility into how each component works
+5. **Customization** — Modify any component to fit specific needs
+
+**Alternative Choices Considered:**
+
+| We Chose | Instead Of | Reason |
+|----------|-----------|--------|
+| Qdrant | Pinecone, Weaviate | Qdrant is fully open source; Pinecone is proprietary |
+| Ollama | OpenAI API | No API costs, data stays local, works offline |
+| sentence-transformers | OpenAI Embeddings | Runs locally, no per-request costs |
+| Lit | React, Vue | Smaller bundle, native Web Components, no framework lock-in |
 
 ---
 
@@ -151,7 +171,7 @@ Designing the instructions given to an LLM to get better outputs.
 
 **Our system prompt (simplified):**
 ```
-You are SpectrumGPT — an expert assistant for Spectrum Web Components.
+You are Spectrum Sense — an expert assistant for Spectrum Web Components.
 Guidelines:
 1. Use ONLY the retrieved passages for facts
 2. Include code examples
@@ -305,14 +325,14 @@ Spectrum-Sense/
 │   ├── __init__.py
 │   └── serve.py                  # Prompt composition + Ollama client
 │
-├── frontend/                     # Chat UI
+├── frontend/                     # Chat UI (Spectrum Web Components)
 │   ├── src/
 │   │   ├── spectrum-chat-app.js  # Main chat application
-│   │   ├── chat-message.js       # Message rendering
+│   │   ├── chat-message.js       # Message rendering with live component previews
 │   │   └── sources-panel.js      # Sources display
-│   ├── index.html
+│   ├── index.html                # Wrapped in sp-theme for Spectrum styling
 │   ├── Dockerfile
-│   └── package.json
+│   └── package.json              # Spectrum Web Components dependencies
 │
 ├── deploy/                       # Deployment Configuration
 │   └── docker-compose.yml        # Docker services definition
@@ -355,10 +375,18 @@ Spectrum-Sense/
 |----------|--------|---------|
 | `/health` | GET | Check service health |
 | `/answer` | POST | Answer a user query |
-| `/ingest/run` | POST | Start ingestion (non-streaming) |
-| `/ingest/run/stream` | POST | Start ingestion with streaming logs |
-| `/ingest/status` | GET | Check ingestion status |
-| `/ingest/cancel` | POST | Cancel running ingestion |
+| `/ingest/run` | POST | Start ingestion (blocking, waits until complete) |
+| `/ingest/run/stream` | POST | Start ingestion with real-time streaming logs (SSE) |
+| `/ingest/status` | GET | Check if ingestion is running |
+| `/ingest/cancel` | POST | Request cancellation of running ingestion |
+
+**Streaming Ingestion Example:**
+```bash
+curl -N -X POST http://localhost:8000/ingest/run/stream \
+  -H "Content-Type: application/json" \
+  -d '{"source": "all", "urls_file": "/app/sample_data/swc_urls.txt"}'
+```
+The `-N` flag disables buffering to see logs in real-time.
 
 **Key Code Patterns:**
 
@@ -540,6 +568,47 @@ class LLMService:
         return response.json()["choices"][0]["message"]["content"]
 ```
 
+### 5.7 Frontend (`frontend/src/`)
+
+The frontend is built with **Lit** (Web Components library) and uses **Spectrum Web Components** for UI.
+
+**Key Features:**
+
+1. **Live Component Previews** - When the LLM returns code containing `<sp-*>` components, the frontend renders both:
+   - A live preview of the component with proper Spectrum styling
+   - The source code below for reference
+
+2. **Markdown Rendering** - Responses are parsed for:
+   - Code blocks (``` ```) with syntax highlighting
+   - Inline code, bold, italic, links
+   - Lists and paragraphs
+
+**Code Example (`chat-message.js`):**
+
+```javascript
+_formatContent(content) {
+    // Detect Spectrum components in code blocks
+    const hasSpectrumComponents = /<sp-[\w-]+/.test(code);
+    
+    if (hasSpectrumComponents) {
+        // Render live preview + code
+        return `
+            <div class="component-preview">
+                <sp-theme theme="spectrum" color="light" scale="medium">
+                    ${code}  <!-- Actual rendered component -->
+                </sp-theme>
+            </div>
+            <pre><code>${escapedCode}</code></pre>  <!-- Source code -->
+        `;
+    }
+}
+```
+
+**Theming:**
+- The app is wrapped in `<sp-theme>` in `index.html`
+- Components inherit Spectrum design tokens automatically
+- No custom CSS overrides needed for Spectrum components
+
 ---
 
 ## 6. Data Flow Explained
@@ -657,10 +726,16 @@ docker compose up -d
 # 3. Download LLM model
 docker exec spectrum-ollama ollama pull mistral:7b
 
-# 4. Ingest data
+# 4. Ingest data (with streaming logs)
 curl -N -X POST http://localhost:8000/ingest/run/stream \
   -H "Content-Type: application/json" \
   -d '{"source": "all", "urls_file": "/app/sample_data/swc_urls.txt", "github_repo": "https://github.com/adobe/spectrum-web-components"}'
+
+# Monitor ingestion status
+curl http://localhost:8000/ingest/status
+
+# Cancel if needed
+curl -X POST http://localhost:8000/ingest/cancel
 
 # 5. Open frontend
 open http://localhost:3000
@@ -814,6 +889,9 @@ docker exec spectrum-ollama ollama pull mistral:7b
 | **CORS** | Cross-Origin Resource Sharing - allows frontend to call API |
 | **SSE** | Server-Sent Events - streaming data from server to client |
 | **Shallow Clone** | Git clone with only latest commit (`--depth 1`) |
+| **Lit** | Lightweight Web Components library used for the frontend |
+| **Spectrum Web Components** | Adobe's open-source implementation of Spectrum Design System |
+| **sp-theme** | Spectrum component that provides design tokens to child components |
 
 ---
 

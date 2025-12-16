@@ -8,7 +8,7 @@ import structlog
 logger = structlog.get_logger(__name__)
 
 # System prompt template
-SYSTEM_PROMPT_TEMPLATE = """You are SpectrumGPT — an expert assistant for Adobe Spectrum Web Components.
+SYSTEM_PROMPT_TEMPLATE = """You are Spectrum Sense — an expert assistant for Adobe Spectrum Web Components.
 
 Your task is to provide comprehensive, detailed answers with code examples.
 

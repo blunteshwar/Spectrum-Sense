@@ -199,7 +199,7 @@ class SpectrumChatApp extends LitElement {
                                 class="header-logo"
                             />
                             <div class="header-text">
-                                <sp-help-text size="l" style="font-weight: bold;">SpectrumGPT</sp-help-text>
+                                <sp-help-text size="l" style="font-weight: bold;">Spectrum Sense</sp-help-text>
                                 <sp-help-text size="s">Adobe Spectrum Documentation Assistant</sp-help-text>
                             </div>
                         </div>
@@ -276,7 +276,7 @@ class SpectrumChatApp extends LitElement {
     _renderWelcome() {
         return html`
             <div class="welcome-container">
-                <sp-illustrated-message heading="Welcome to SpectrumGPT">
+                <sp-illustrated-message heading="Welcome to Spectrum Sense">
                     <sp-icon-chat slot="illustration" style="width: 100px; height: 100px;"></sp-icon-chat>
                     <sp-help-text size="m" slot="description">
                         I'm here to help you with Adobe Spectrum Design System and Spectrum Web Components. 

@@ -64,16 +64,16 @@ https://opensource.adobe.com/spectrum-web-components/components/popover
 # ... add all your URLs
 ```
 
-> **Note:** The file already contains 122 URLs for SWC documentation. You can use it as-is or modify it.
+> **Note:** The file already contains ~120 URLs for SWC documentation. You can use it as-is or modify it.
 
 ### Step 3: Start All Services
 
-```bash
-cd deploy
-docker compose up -d
-```
+   ```bash
+   cd deploy
+   docker compose up -d
+   ```
 
-This starts:
+   This starts:
 | Service | Port | Description |
 |---------|------|-------------|
 | Frontend | 3000 | Chat interface |
@@ -85,17 +85,17 @@ Wait ~60 seconds for services to initialize.
 
 ### Step 4: Download the LLM Model
 
-```bash
-docker exec spectrum-ollama ollama pull mistral:7b
-```
-
+   ```bash
+   docker exec spectrum-ollama ollama pull mistral:7b
+   ```
+   
 This downloads Mistral 7B (~4GB). Other options: `llama2:7b`, `codellama:7b`.
 
 ### Step 5: Ingest Data
 
 Run this command to ingest both the documentation site AND the GitHub codebase (with real-time streaming logs):
 
-```bash
+   ```bash
 curl -N -X POST http://localhost:8000/ingest/run/stream \
   -H "Content-Type: application/json" \
   -d '{
@@ -125,9 +125,9 @@ Press `Ctrl+C` to stop watching logs (ingestion continues in background).
 
 ### Step 6: Verify and Use
 
-```bash
+   ```bash
 # Check health (should show points count > 0)
-curl http://localhost:8000/health
+   curl http://localhost:8000/health
 ```
 
 Open **http://localhost:3000** in your browser and start asking questions!
@@ -198,20 +198,20 @@ Ingest documentation, GitHub code, and Slack (if configured) with streaming logs
 
 ```bash
 curl -N -X POST http://localhost:8000/ingest/run/stream \
-  -H "Content-Type: application/json" \
-  -d '{
+     -H "Content-Type: application/json" \
+     -d '{
     "source": "all",
     "urls_file": "/app/sample_data/swc_urls.txt",
     "github_repo": "https://github.com/adobe/spectrum-web-components"
-  }'
+     }'
 ```
 
 **Alternative: Non-streaming endpoint**
 
 If you prefer a simple response without streaming logs:
 ```bash
-curl -X POST http://localhost:8000/ingest/run \
-  -H "Content-Type: application/json" \
+   curl -X POST http://localhost:8000/ingest/run \
+     -H "Content-Type: application/json" \
   -d '{"source": "all", "urls_file": "/app/sample_data/swc_urls.txt", "github_repo": "https://github.com/adobe/spectrum-web-components"}'
 ```
 
@@ -487,7 +487,6 @@ Spectrum-Sense/
 │   ├── swc_docs_crawler.py    # Crawl docs from URL list
 │   ├── github_ingester.py     # Clone and index GitHub repos
 │   ├── slack_importer.py      # Import Slack exports
-│   ├── spectrum_crawler.py    # Legacy crawler (auto-discovery)
 │   └── normalize_and_chunk.py # Text chunking
 ├── embeddings/             # Embedding computation
 │   └── compute_embeddings.py
@@ -528,7 +527,7 @@ curl -X POST http://localhost:8000/answer \
   -H "Content-Type: application/json" \
   -d '{
     "query": "How do I use sp-popover?",
-    "top_k": 5
+  "top_k": 5
   }'
 ```
 
@@ -646,17 +645,17 @@ curl http://localhost:8000/health
 
 ### Changing the LLM Model
 
-```bash
+   ```bash
 # Pull a different model
-docker exec spectrum-ollama ollama pull llama2:7b
+   docker exec spectrum-ollama ollama pull llama2:7b
 
 # Update docker-compose.yml
 # environment:
 #   - LLM_MODEL=llama2:7b
 
 # Restart API
-docker compose restart api
-```
+   docker compose restart api
+   ```
 
 ---
 
