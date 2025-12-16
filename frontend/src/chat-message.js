@@ -17,6 +17,7 @@ class ChatMessage extends LitElement {
         .message-row {
             display: flex;
             gap: var(--spectrum-global-dimension-size-150);
+            min-width: 0;
         }
 
         .message-row.user {
@@ -31,6 +32,7 @@ class ChatMessage extends LitElement {
             display: inline-block;
             width: auto;
             max-width: 75%;
+            min-width: 0;
             padding: 6px 10px;
             border-radius: 16px;
             box-shadow: var(--spectrum-alias-elevation-low);
@@ -60,11 +62,12 @@ class ChatMessage extends LitElement {
         .message-text {
             white-space: pre-line;
             word-break: break-word;
+            overflow-wrap: anywhere;
             line-height: 1.2;
             color: inherit;
             margin: 0;
             padding: 0;
-            display: inline-block;
+            display: block;
             text-align: left;
         }
 
@@ -99,6 +102,7 @@ class ChatMessage extends LitElement {
             padding: 10px 12px;
             border-radius: var(--spectrum-global-dimension-size-100);
             overflow-x: auto;
+            max-width: 100%;
             margin: var(--spectrum-global-dimension-size-150) 0;
             font-family: var(--spectrum-global-font-family-code);
             font-size: var(--spectrum-global-dimension-font-size-75);
@@ -162,6 +166,7 @@ class ChatMessage extends LitElement {
             margin: var(--spectrum-global-dimension-size-150) 0;
             border-radius: var(--spectrum-global-dimension-size-100);
             overflow: hidden;
+            max-width: 100%;
             border: 1px solid rgba(0, 0, 0, 0.08);
             box-shadow: 0 10px 24px rgba(0, 0, 0, 0.12);
         }
